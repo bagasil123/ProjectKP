@@ -1,0 +1,48 @@
+/* Hero Banner Styling */
+.hero-banner {
+    background-color: #6c757d;
+    background: linear-gradient(135deg, #5a6268 0%, #6c757d 100%);
+    padding-top: 8rem;
+    padding-bottom: 4rem;
+    margin-top: -1px;
+    background-size: cover;
+    background-position: center;
+}
+
+/* Konten di dalam hero banner */
+.hero-banner .container {
+    color: white;
+}
+
+/* Hero Slider */
+.hero-slider {
+    margin-top: 56px; /* Height of navbar */
+}
+
+.hero-slider .carousel-item {
+    height: 70vh;
+    min-height: 500px;
+}
+
+.hero-slider .carousel-item img {
+    object-fit: cover;
+    height: 100%;
+    width: 100%;
+}
+
+/* Navbar */
+.navbar {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* About Section */
+.about-section {
+    background-color: #f8f9fa;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .hero-slider .carousel-item {
+        height: 50vh;
+    }
+}

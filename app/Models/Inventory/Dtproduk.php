@@ -1,0 +1,57 @@
+<?php
+
+namespace App\Models\Inventory;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Dtproduk extends Model
+{
+    use HasFactory;
+
+    protected $table = 'dataproduk_tabel';
+
+    protected $fillable = [
+        'kode_produk',
+        'nama_produk',
+        'supplier_id',
+        'qty',
+        'harga_beli',
+        'harga_jual',
+    ];
+
+    public function supplier()
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
+    /**
+     * Increase product quantity
+     */
+    public function incrementStock($quantity)
+    {
+        $this->qty += $quantity;
+        $this->save();
+        return $this;
+    }
+
+    /**
+     * Decrease product quantity
+     */
+    public function decrementStock($quantity)
+    {
+        $this->qty = max(0, $this->qty - $quantity);
+        $this->save();
+        return $this;
+    }
+
+    /**
+     * Update last purchase price
+     */
+    public function updatePurchasePrice($price)
+    {
+        $this->harga_beli = $price;
+        $this->save();
+        return $this;
+    }
+}
