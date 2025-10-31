@@ -8,12 +8,6 @@ use App\Http\Controllers\Api\ForgotPasswordController;
 use App\Http\Controllers\Api\LeaveRequestController;
 use App\Http\Controllers\Api\NotificationController;
 
-/*
-|--------------------------------------------------------------------------
-| API Routes
-|--------------------------------------------------------------------------
-*/
-
 // --- RUTE PUBLIK (Tidak Perlu Login/Token) ---
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password/validate', [ForgotPasswordController::class, 'validateStep']);

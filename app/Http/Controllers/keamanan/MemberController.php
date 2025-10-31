@@ -7,117 +7,129 @@ use App\Models\keamanan\RightAccess;
 use App\Models\keamanan\Member;
 use App\Models\keamanan\Role;
 use App\Models\Presensi\Employee;
-use App\Models\keamanan\RoleMenu; // Tetap diperlukan untuk mapping hak akses
-
+use App\Models\keamanan\RoleMenu;
+use App\Models\MutasiGudang\Warehouse; // Pastikan ini ada
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Illuminate\Validation\Rule;
+// Tambahan jika Anda tidak punya helper `commonData`
+use App\Models\keamanan\menu; 
 
 class MemberController extends Controller
 {
-    /**
-     * Menampilkan daftar member dan form untuk menambah/mengedit.
-     */
+ 
     public function index(Request $request)
     {
-        $members = Member::with('role')->get(); // Ambil semua member dengan eager loading role utama
-        $roles = Role::all(); // Semua role untuk dropdown dan tabel hak akses
+        // Pastikan $this->commonData() ada dan mengembalikan array
+        $data = $this->commonData() ?? ['menus' => [], 'roleMenus' => []];
+        
+        $data['members'] = Member::with('role', 'employee')->get();
+        $data['roles'] = Role::all();
+        $data['warehouses'] = Warehouse::all(); // Mengirim data semua gudang
+        $data['memberWarehouses'] = []; // Default untuk form 'Buat Baru'
 
-        // Data karyawan untuk dropdown
-        $karyawans = Employee::all();
-
-        // Variabel untuk mode edit
+        // Variabel duplikat ini tidak diperlukan jika sudah ada di $data
+        // $members = Member::with('role')->get(); 
+        // $roles = Role::all(); 
+ 
+        $karyawans = Employee::all(); // Ini juga mungkin duplikat, tapi biarkan
+ 
         $memberToEdit = null;
-        // Inisialisasi hak akses yang disederhanakan untuk UI (key: role_id)
+ 
         $simplifiedAccesses = []; 
-        foreach ($roles as $role) {
+        foreach ($data['roles'] as $role) {
             $simplifiedAccesses[$role->id] = [
-                'tambah' => '0', // Default 'F' atau '0'
+                'tambah' => '0', 
                 'ubah' => '0',
                 'hapus' => '0',
             ];
         }
 
-        // Cek jika ada parameter 'edit_id' di URL (dari redirect method edit)
+ 
         if ($request->has('edit_id')) {
             $memberToEdit = Member::with('role', 'rightAccesses.roleMenuCombination.role', 'rightAccesses.roleMenuCombination.menu')
                                 ->find($request->input('edit_id'));
             
             if ($memberToEdit) {
-                // Proses hak akses granular dari DB menjadi format yang disederhanakan untuk UI
-                foreach ($memberToEdit->rightAccesses as $access) {
-                    // Pastikan kombinasi role-menu dan role-nya ada
+ 
+                // Mengisi data gudang milik user
+                $data['memberWarehouses'] = $memberToEdit->warehouse_access ?? []; 
+
+                foreach ($memberToEdit->rightAccesses as $access) { 
                     if ($access->roleMenuCombination && $access->roleMenuCombination->role) {
-                        $roleId = $access->roleMenuCombination->role->id;
-                        
-                        // Set 'T'/'1' jika ada setidaknya satu hak akses yang 'T' untuk role tersebut
-                        // Ini adalah logika "OR": jika salah satu submenu diizinkan, checkbox role-level dicentang
+                        $roleId = $access->roleMenuCombination->role->id; 
                         if ($access->AC_AD == 'T') $simplifiedAccesses[$roleId]['tambah'] = '1';
                         if ($access->AC_ED == 'T') $simplifiedAccesses[$roleId]['ubah'] = '1';
                         if ($access->AC_DE == 'T') $simplifiedAccesses[$roleId]['hapus'] = '1';
                     }
                 }
             }
-        }
+        } 
+        
+        // Gunakan $simplifiedAccesses yang sudah di-loop di atas
+        $data['simplifiedAccesses'] = $simplifiedAccesses; 
+        
+        // Hapus variabel duplikat dari compact
+        return view('keamanan.user.index', $data, compact('karyawans', 'memberToEdit'));
+    } 
 
-        // Tidak perlu lagi $allRoleMenus karena pemfilteran di JS dihapus
-        // dan tabel akses akan diisi berdasarkan $roles dan $simplifiedAccesses
-        return view('keamanan.user.index', compact('members', 'roles', 'karyawans', 'memberToEdit', 'simplifiedAccesses'));
-    }
-
-    /**
-     * Menyimpan member baru dan hak aksesnya.
-     */
     public function store(Request $request)
     {
-        // Validasi input
         $request->validate([
             'Mem_ID' => 'required|string|max:10|unique:m_members,Mem_ID',
             'Mem_UserName' => 'required|string|max:50',
             'mem_password' => 'required|string|min:4|same:confirm_password',
             'Mem_ActiveYN' => 'required|in:Y,N',
-            'role_id' => 'required|exists:roles,id', // Role utama
-            'akses_role' => 'nullable|array', // Array hak akses dari UI yang disederhanakan (keyed by role_id)
+            'role_id' => 'required|exists:roles,id', 
+            'akses_role' => 'nullable|array', 
             'akses_role.*.tambah' => 'nullable|in:1',
             'akses_role.*.ubah' => 'nullable|in:1',
             'akses_role.*.hapus' => 'nullable|in:1',
+            'warehouses' => 'nullable|array',
+            'warehouses.*' => 'string|exists:m_warehouse,WARE_Auto'
         ]);
 
-        DB::beginTransaction(); // Memulai transaksi database
+        DB::beginTransaction(); 
         try {
-            // Simpan member baru
+ 
+            $role = Role::findOrFail($request->role_id);
+            $warehouseData = null; 
+
+            // Ganti 'Admin Gudang' jika nama role-nya beda
+            if ($role->name == 'Admin Gudang' && $request->has('warehouses')) {
+                $warehouseData = $request->warehouses;
+            }
+
             $member = Member::create([
                 'Mem_ID' => $request->Mem_ID,
                 'Mem_UserName' => $request->Mem_UserName,
                 'mem_password' => Hash::make($request->mem_password),
                 'Mem_ActiveYN' => $request->Mem_ActiveYN,
                 'role_id' => $request->role_id,
-            ]);
+                'warehouse_access' => $warehouseData, // Simpan data warehouse
+            ]); 
+            
+            // Assign role ke Spatie (jika Anda menggunakannya)
+            // $member->assignRole($role->name);
 
-            // Proses dan simpan hak akses granular
-            if ($request->has('akses_role') && is_array($request->akses_role)) {
-                // Iterate setiap role yang ada di form
-                foreach ($request->akses_role as $roleId => $permissions) {
-                    // Cek apakah role_id valid
+            if ($request->has('akses_role') && is_array($request->akses_role)) { 
+                foreach ($request->akses_role as $roleId => $permissions) { 
                     $roleExists = Role::where('id', $roleId)->exists();
                     if (!$roleExists) {
                         continue;
-                    }
-
-                    // Dapatkan semua kombinasi role-menu untuk role_id ini
+                    } 
                     $roleMenusForThisRole = RoleMenu::where('role_id', $roleId)->get();
 
-                    foreach ($roleMenusForThisRole as $rm) {
-                        // Untuk setiap kombinasi role-menu, simpan hak aksesnya
-                        RightAccess::updateOrCreate( // Menggunakan updateOrCreate untuk memastikan uniqueness
+                    foreach ($roleMenusForThisRole as $rm) { 
+                        RightAccess::updateOrCreate(
                             ['AC_USER' => $member->Mem_ID, 'AC_MAINMENU' => $rm->id],
                             [
                                 'AC_AD' => isset($permissions['tambah']) && $permissions['tambah'] == '1' ? 'T' : 'F',
                                 'AC_ED' => isset($permissions['ubah']) && $permissions['ubah'] == '1' ? 'T' : 'F',
                                 'AC_DE' => isset($permissions['hapus']) && $permissions['hapus'] == '1' ? 'T' : 'F',
-                                'AC_USERID' => auth()->user()->id ?? 'admin',
+                                'AC_USERID' => auth()->id() ?? 'admin', // Ambil ID user yg login
                                 'AC_LASTUPDATE' => now(),
                             ]
                         );
@@ -125,75 +137,79 @@ class MemberController extends Controller
                 }
             }
 
-            DB::commit(); // Commit transaksi
-            return redirect()->back()->with('success', 'Pengguna dan hak akses berhasil disimpan.');
+            DB::commit();
+            return redirect()->route('keamanan.member.index')->with('success', 'Pengguna dan hak akses berhasil disimpan.');
         } catch (\Exception $e) {
-            DB::rollback(); // Rollback transaksi jika ada kesalahan
-            return redirect()->back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+            DB::rollback();
+            // PERBAIKAN: Ganti redirect()->back()
+            return redirect()->route('keamanan.member.index')->with('error', 'Terjadi kesalahan: ' . $e->getMessage())->withInput();
         }
-    }
-
-    /**
-     * Redirect ke halaman index untuk menampilkan form edit.
-     */
+    } 
+    
     public function edit($id)
     {
+        // Ini cara yang benar untuk memuat halaman edit
         return redirect()->route('keamanan.member.index', ['edit_id' => $id]);
-    }
-
-    /**
-     * Memperbarui member dan hak aksesnya.
-     */
+    } 
+    
     public function update(Request $request, $id)
     {
-        $member = Member::findOrFail($id); // Temukan member yang akan diupdate
-
-        // Validasi input
+        $member = Member::findOrFail($id); 
         $request->validate([
             'Mem_UserName' => 'required|string|max:50',
             'Mem_ActiveYN' => 'required|in:Y,N',
             'role_id' => 'required|exists:roles,id',
             'mem_password' => 'nullable|string|min:4|same:confirm_password',
-            'akses_role' => 'nullable|array', // Array hak akses dari UI yang disederhanakan
+            'akses_role' => 'nullable|array', 
             'akses_role.*.tambah' => 'nullable|in:1',
             'akses_role.*.ubah' => 'nullable|in:1',
             'akses_role.*.hapus' => 'nullable|in:1',
+            'warehouses' => 'nullable|array',
+            'warehouses.*' => 'string|exists:m_warehouse,WARE_Auto'
         ]);
 
-        DB::beginTransaction(); // Memulai transaksi database
+        DB::beginTransaction();
         try {
-            // Update data dasar member
+            
+            $role = Role::findOrFail($request->role_id);
+            $warehouseData = null; 
+
+            // Ganti 'Admin Gudang' jika nama role-nya beda
+            if ($role->name == 'Admin Gudang' && $request->has('warehouses')) {
+                $warehouseData = $request->warehouses;
+            }
+
             $member->Mem_UserName = $request->Mem_UserName;
             $member->Mem_ActiveYN = $request->Mem_ActiveYN;
             $member->role_id = $request->role_id;
+            $member->warehouse_access = $warehouseData; // Simpan data warehouse
+            
             if ($request->filled('mem_password')) {
                 $member->mem_password = Hash::make($request->mem_password);
             }
-            $member->save();
+            $member->save(); 
 
-            // Hapus semua hak akses lama untuk pengguna ini (opsional, bisa juga update langsung)
-            // Menggunakan updateOrCreate akan lebih efisien jika sudah ada, tapi delete all then create is safer
-            $member->rightAccesses()->delete();
+            // Sync role Spatie (jika pakai)
+            // $member->syncRoles($role->name);
 
-            // Proses dan simpan hak akses granular yang baru
+            $member->rightAccesses()->delete(); 
             if ($request->has('akses_role') && is_array($request->akses_role)) {
                 foreach ($request->akses_role as $roleId => $permissions) {
                     $roleExists = Role::where('id', $roleId)->exists();
                     if (!$roleExists) {
                         continue;
                     }
-
-                    // Dapatkan semua kombinasi role-menu untuk role_id ini
+ 
                     $roleMenusForThisRole = RoleMenu::where('role_id', $roleId)->get();
 
                     foreach ($roleMenusForThisRole as $rm) {
-                        RightAccess::updateOrCreate( // Menggunakan updateOrCreate untuk memastikan uniqueness
+                        RightAccess::updateOrCreate( 
                             ['AC_USER' => $member->Mem_ID, 'AC_MAINMENU' => $rm->id],
                             [
                                 'AC_AD' => isset($permissions['tambah']) && $permissions['tambah'] == '1' ? 'T' : 'F',
                                 'AC_ED' => isset($permissions['ubah']) && $permissions['ubah'] == '1' ? 'T' : 'F',
                                 'AC_DE' => isset($permissions['hapus']) && $permissions['hapus'] == '1' ? 'T' : 'F',
-                                'AC_USERID' => auth()->user()->id ?? 'admin',
+                                'AC_USERID' => auth()->id() ?? 'admin',
                                 'AC_LASTUPDATE' => now(),
                             ]
                         );
@@ -205,30 +221,29 @@ class MemberController extends Controller
             return redirect()->route('keamanan.member.index')->with('success', 'Data member dan hak akses diperbarui.');
         } catch (\Exception | \Illuminate\Database\QueryException $e) {
             DB::rollback();
-            return redirect()->back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+            // PERBAIKAN: Ganti redirect()->back()
+            return redirect()->route('keamanan.member.index', ['edit_id' => $id])->with('error', 'Terjadi kesalahan: '. $e->getMessage())->withInput();
         }
-    }
-
-    /**
-     * Menghapus member dan hak aksesnya.
-     */
+    } 
+    
     public function destroy($id)
     {
         DB::beginTransaction();
         try {
             $member = Member::findOrFail($id);
-            $member->rightAccesses()->delete(); // Hapus semua hak akses terkait
-            $member->delete(); // Hapus member
+            $member->rightAccesses()->delete(); 
+            $member->delete(); 
 
             DB::commit();
-            return redirect()->back()->with('success', 'Pengguna berhasil dihapus.');
+            return redirect()->route('keamanan.member.index')->with('success', 'Pengguna berhasil dihapus.');
         } catch (\Exception $e) {
             DB::rollback();
-            return redirect()->back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+            // PERBAIKAN: Ganti redirect()->back()
+            return redirect()->route('keamanan.member.index')->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
         }
     }
 
-public function searchEmployees(Request $request)
+    public function searchEmployees(Request $request)
     {
         $search = $request->query('term');
         $page = $request->query('page', 1);
@@ -247,10 +262,9 @@ public function searchEmployees(Request $request)
         foreach ($employees->items() as $employee) {
             $formattedBirthDate = null;
             if ($employee->emp_DateBorn) {
-                try {
-                    // Pastikan emp_DateBorn adalah format yang dapat diparsing Carbon (misal: 'YYYY-MM-DD')
+                try { 
                     $dateBorn = Carbon::parse($employee->emp_DateBorn);
-                    $formattedBirthDate = $dateBorn->format('Ymd'); // Output: YYYYMMDD
+                    $formattedBirthDate = $dateBorn->format('Ymd'); 
                 } catch (\Exception $e) {
                     \Log::error("Error parsing birth date for employee {$employee->emp_Code}: {$e->getMessage()}");
                 }
@@ -259,7 +273,7 @@ public function searchEmployees(Request $request)
             $results[] = [
                 'id' => $employee->emp_Code, 
                 'text' => $employee->emp_Name . ' (' . $employee->emp_Code . ')',
-                'birth_date' => $formattedBirthDate, // Ini yang kita kirim
+                'birth_date' => $formattedBirthDate, 
             ];
         }
 
@@ -269,5 +283,50 @@ public function searchEmployees(Request $request)
                 'more' => $employees->hasMorePages()
             ]
         ]);
+    }
+
+    // ===================================================================
+    // PASTIKAN FUNGSI HELPER INI ADA DAN SESUAI
+    // ===================================================================
+    
+    private function commonData()
+    {
+        // Sesuaikan dengan kebutuhan data Anda
+        return [
+            'menus' => menu::where('parent_id', 0)->with('children')->get(),
+            'roleMenus' => RoleMenu::all(),
+            // 'nama_var_lain' => ModelLain::all(),
+        ];
+    }
+
+    private function getSimplifiedAccesses($memberToEdit)
+    {
+        $roles = Role::all();
+        $simplifiedAccesses = []; 
+
+        foreach ($roles as $role) {
+            $simplifiedAccesses[$role->id] = [
+                'tambah' => '0', 
+                'ubah' => '0',
+                'hapus' => '0',
+            ];
+        }
+
+        if ($memberToEdit) {
+             // Pastikan relasi 'rightAccesses' sudah di-load
+            $memberToEdit->loadMissing('rightAccesses.roleMenuCombination.role');
+
+            foreach ($memberToEdit->rightAccesses as $access) { 
+                if ($access->roleMenuCombination && $access->roleMenuCombination->role) {
+                    $roleId = $access->roleMenuCombination->role->id; 
+                    if (!isset($simplifiedAccesses[$roleId])) continue; 
+                    if ($access->AC_AD == 'T') $simplifiedAccesses[$roleId]['tambah'] = '1';
+                    if ($access->AC_ED == 'T') $simplifiedAccesses[$roleId]['ubah'] = '1';
+                    if ($access->AC_DE == 'T') $simplifiedAccesses[$roleId]['hapus'] = '1';
+                }
+            }
+        }
+        
+        return $simplifiedAccesses;
     }
 }

@@ -96,7 +96,9 @@
                             <select name="role_id" id="role_id" class="form-control" required>
                                 <option value="">-- Pilih Role --</option>
                                 @foreach ($roles as $role)
-                                    <option value="{{ $role->id }}" {{ old('role_id', $memberToEdit->role_id ?? '') == $role->id ? 'selected' : '' }}>
+                                    <option value="{{ $role->id }}" 
+                                            data-role-name="{{ $role->name }}" {{-- Atribut ini penting untuk JS --}}
+                                            {{ old('role_id', $memberToEdit->role_id ?? '') == $role->id ? 'selected' : '' }}>
                                         {{ $role->name }}
                                     </option>
                                 @endforeach
@@ -105,6 +107,24 @@
                     </div>
                 </div>
 
+                <div class="row" id="warehouse-access-section" style="display: none;">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <hr>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="font-weight-bold"><i class="fas fa-warehouse"></i> Akses Gudang</h6>
+                                <button type="button" id="add-warehouse-btn" class="btn btn-success btn-sm" title="Tambah Gudang">
+                                    <i class="fa fa-plus"></i>
+                                </button>
+                            </div>
+                            <p class="text-muted" style="font-size: 0.9rem; margin-top: -10px;">
+                                Pilih gudang yang dapat diakses oleh user ini.
+                            </p>
+                            <div id="warehouse-list-container">
+                                </div>
+                        </div>
+                    </div>
+                </div>
                 <div id="userAccessSection" class="mt-4 d-none">
                     <h5 class="font-weight-bold mb-3">Hak Akses Per Role</h5>
                     <div class="table-responsive">
@@ -158,7 +178,7 @@
                     @endif
 
                     @if(isset($memberToEdit))
-                    <a href="{{ route('keamanan.member.index') }}" class="btn btn-secondary" onclick="resetForm()">
+                    <a href="{{ route('keamanan.member.index') }}" class="btn btn-secondary">
                         <i class="fas fa-plus"></i> Buat Baru
                     </a>
                     @endif
@@ -222,9 +242,14 @@
 @endsection
 
 @push('scripts')
+{{-- Link untuk Select2 --}}
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/@ttskch/select2-bootstrap4-theme@1.5.2/dist/select2-bootstrap4.min.css" rel="stylesheet" /> 
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script> 
+
+{{-- Link untuk moment.js (dipakai oleh select2) dan parsley.js (dipakai oleh form) --}}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/parsleyjs@2.9.2/dist/parsley.min.js"></script> 
 
 
 <script>
@@ -233,9 +258,74 @@
     const simplifiedAccesses = @json($simplifiedAccesses); 
     const isEditMode = {{ isset($memberToEdit) ? 'true' : 'false' }};
 
+
+    const allWarehouses = @json($data['warehouses'] ?? $warehouses ?? []);
+    const memberWarehouses = @json(old('warehouses', $memberWarehouses ?? [])); 
+
+    /**
+     * Membuat template HTML untuk satu baris dropdown gudang.
+     */
+    const warehouseRowTemplate = (selectedId = '') => {
+        let options = allWarehouses.map(wh => {
+            if (!wh) return ''; // Pengaman jika ada data null
+            
+            const code = wh.WARE_Auto || 'N/A';
+            const name = wh.WARE_Name || 'N/A';
+            
+            let isDisabled = false;
+            document.querySelectorAll('.warehouse-select').forEach(select => {
+                if (select.value == code && select.value != selectedId) {
+                    isDisabled = true;
+                }
+            });
+            // ===================================================================
+            // BLOK DUPLIKAT YANG MENYEBABKAN ERROR TELAH DIHAPUS DARI SINI
+            // ===================================================================
+
+            return `<option value="${code}" 
+                        ${selectedId == code ? 'selected' : ''} 
+                        ${isDisabled ? 'disabled' : ''}>
+                        ${code} - ${name}
+                    </option>`;
+        }).join('');
+
+        return `
+        <div class="row warehouse-row mb-2">
+            <div class="col-10">
+                <select class="form-control warehouse-select" name="warehouses[]" required>
+                    <option value="">Pilih Gudang</option>
+                    ${options}
+                </select>
+            </div>
+            <div class="col-2 d-flex align-items-center">
+                <button type="button" class="btn btn-danger btn-sm remove-warehouse-btn" title="Hapus">
+                    <i class="fa fa-trash"></i>
+                </button>
+            </div>
+        </div>`;
+    };
+
+    /**
+     * Mengupdate opsi di semua dropdown gudang agar tidak bisa dipilih duplikat.
+     */
+    function updateWarehouseSelectOptions() {
+        const selectedValues = [];
+        document.querySelectorAll('.warehouse-select').forEach(select => {
+            if(select.value) selectedValues.push(select.value);
+        });
+
+        document.querySelectorAll('.warehouse-select').forEach(select => {
+            const currentValue = select.value;
+            select.querySelectorAll('option').forEach(option => {
+                if (option.value && option.value !== currentValue) {
+                    option.disabled = selectedValues.includes(option.value);
+                }
+            });
+        });
+    }
+
     /**
      * Mengisi input Nama Pengguna dan Password berdasarkan pilihan Karyawan dari Select2.
-     * @param {object} data Objek data yang dipilih dari Select2 (sudah termasuk birth_date).
      */
     function populateUserDataFromSelect2(data) {
         const userNameInput = document.getElementById('Mem_UserName');
@@ -243,23 +333,19 @@
         const confirmPasswordInput = document.getElementById('confirm_password');
 
         if (data && data.text) {
-            // Isi Nama Pengguna
             const userNameMatch = data.text.match(/^(.*) \((.*)\)$/);
             userNameInput.value = userNameMatch ? userNameMatch[1] : data.text;
 
-            // Isi Password dan Konfirmasi Password dengan tanggal lahir
             if (data.birth_date) {
                 passwordInput.value = data.birth_date;
                 confirmPasswordInput.value = data.birth_date;
             } else {
-                // Jika tanggal lahir tidak ada, kosongkan password atau berikan placeholder
                 passwordInput.value = '';
                 confirmPasswordInput.value = '';
                 passwordInput.placeholder = 'Tanggal lahir tidak tersedia';
                 confirmPasswordInput.placeholder = 'Tanggal lahir tidak tersedia';
             }
         } else {
-            // Kosongkan semua jika tidak ada data dipilih
             userNameInput.value = '';
             passwordInput.value = '';
             confirmPasswordInput.value = '';
@@ -269,9 +355,7 @@
     }
 
     /**
-     * Mengatur visibilitas bagian hak akses dan mengisi status checkbox.
-     * Dipanggil saat dropdown "Pilih Role Utama" berubah.
-     * @param {string} selectedRoleId ID Role Utama yang dipilih.
+     * Mengatur visibilitas bagian hak akses dan gudang.
      */
     function toggleAccessSection(selectedRoleId) {
         const userAccessSection = document.getElementById('userAccessSection');
@@ -279,20 +363,22 @@
         const aksesTambahCheckbox = document.getElementById('akses_role_tambah');
         const aksesUbahCheckbox = document.getElementById('akses_role_ubah');
         const aksesHapusCheckbox = document.getElementById('akses_role_hapus');
-
         const oldAksesRoleData = @json(old('akses_role', []));
 
+        // Logika untuk Gudang
+        const warehouseAccessSection = document.getElementById('warehouse-access-section');
+        const warehouseListContainer = document.getElementById('warehouse-list-container');
+        // Ambil nama role dari data-attribute
+        const selectedRoleName = $(`#role_id option[value="${selectedRoleId}"]`).data('role-name');
+        
         if (selectedRoleId) {
             userAccessSection.classList.remove('d-none');
             
             const selectedRole = allRolesData.find(role => role.id == selectedRoleId);
             selectedRoleNameDisplay.textContent = selectedRole ? selectedRole.name : 'N/A';
 
-            // Determine checkbox states
-            let isTambah = false;
-            let isUbah = false;
-            let isHapus = false;
-
+            // Logika checkbox hak akses
+            let isTambah = false, isUbah = false, isHapus = false;
             if (oldAksesRoleData[selectedRoleId]) {
                 isTambah = oldAksesRoleData[selectedRoleId].tambah === '1';
                 isUbah = oldAksesRoleData[selectedRoleId].ubah === '1';
@@ -302,223 +388,212 @@
                 isUbah = simplifiedAccesses[selectedRoleId].ubah === '1';
                 isHapus = simplifiedAccesses[selectedRoleId].hapus === '1';
             }
-
-            // Update checkboxes
             aksesTambahCheckbox.checked = isTambah;
             aksesUbahCheckbox.checked = isUbah;
             aksesHapusCheckbox.checked = isHapus;
-
-            // Update checkbox names
             aksesTambahCheckbox.name = `akses_role[${selectedRoleId}][tambah]`;
             aksesUbahCheckbox.name = `akses_role[${selectedRoleId}][ubah]`;
             aksesHapusCheckbox.name = `akses_role[${selectedRoleId}][hapus]`;
+
+            // ===================================================================
+            // Cek nama Role. Pastikan 'Admin Gudang' adalah nama yang
+            // benar-benar ada di database Anda
+            // ===================================================================
+            if (selectedRoleName === 'Admin Gudang') { 
+                warehouseAccessSection.style.display = 'block';
+                if (warehouseListContainer.children.length === 0) {
+                    warehouseListContainer.innerHTML = warehouseRowTemplate();
+                }
+            } else {
+                warehouseAccessSection.style.display = 'none';
+                warehouseListContainer.innerHTML = ''; // Kosongkan
+            }
+            // ===================================================================
+
         } else {
+            // Sembunyikan semua jika tidak ada role dipilih
             userAccessSection.classList.add('d-none');
             selectedRoleNameDisplay.textContent = '';
             
-            // Reset checkboxes
             aksesTambahCheckbox.checked = false;
             aksesUbahCheckbox.checked = false;
             aksesHapusCheckbox.checked = false;
-            
-            // Set default names
             aksesTambahCheckbox.name = `akses_role[0][tambah]`;
             aksesUbahCheckbox.name = `akses_role[0][ubah]`;
             aksesHapusCheckbox.name = `akses_role[0][hapus]`;
+
+            warehouseAccessSection.style.display = 'none';
+            warehouseListContainer.innerHTML = ''; 
         }
     }
 
     /**
-     * Mereset form ke mode "Buat Baru" dan membersihkan input.
+     * Mereset form ke mode "Buat Baru".
      */
     function resetForm() {
         document.getElementById('memberForm').reset();
         document.getElementById('memberForm').action = "{{ route('keamanan.member.store') }}";
         
-        // Remove method input if exists
         const methodInput = document.querySelector('#memberForm input[name="_method"]');
         if (methodInput) {
             methodInput.remove();
         }
-
-        // Reset Select2
         $('#Mem_ID').val('').trigger('change');
         $('#Mem_ID').empty().append('<option value="">-- Pilih Karyawan --</option>');
         $('#Mem_ID').prop('disabled', false);
         initSelect2();
-
-        // Clear username and password fields
         document.getElementById('Mem_UserName').value = '';
         document.getElementById('mem_password').value = '';
         document.getElementById('confirm_password').value = '';
         document.getElementById('mem_password').placeholder = '';
         document.getElementById('confirm_password').placeholder = '';
-
-        // Reset role selection
         document.getElementById('role_id').value = '';
         toggleAccessSection('');
-
-        // Hide create new button if exists
-        const createNewButton = document.querySelector('.form-group.mt-4 .btn-secondary');
+        
+        // Sembunyikan tombol "Buat Baru"
+        const createNewButton = document.querySelector('a.btn-secondary');
         if (createNewButton) {
             createNewButton.style.display = 'none';
         }
 
-        // Update browser history
+        document.getElementById('warehouse-list-container').innerHTML = '';
+        document.getElementById('warehouse-access-section').style.display = 'none';
+        
         history.pushState(null, '', '{{ route('keamanan.member.index') }}');
     }
 
     /**
-     * Initializes Select2 with custom configuration
+     * Inisialisasi Select2 untuk Karyawan
      */
-function initSelect2() {
-    // Destroy previous Select2 instance if exists
-    if ($('#Mem_ID').hasClass('select2-hidden-accessible')) {
-        $('#Mem_ID').select2('destroy');
-    }
-
-    // Initialize Select2
-    $('#Mem_ID').select2({
-        placeholder: '-- Pilih Karyawan --',
-        allowClear: true,
-        theme: "bootstrap4",
-        width: '100%',
-        minimumInputLength: 0,  // Allow showing options without typing
-        ajax: {
-            url: '{{ route('keamanan.member.searchEmployees') }}',
-            dataType: 'json',
-            delay: 250,
-            data: function(params) {
-                return {
-                    term: params.term || '',
-                    page: params.page || 1,
-                    load_all: params.term ? 0 : 1  // Flag to load initial data
-                };
+    function initSelect2() {
+        if ($('#Mem_ID').hasClass('select2-hidden-accessible')) {
+            $('#Mem_ID').select2('destroy');
+        }
+        $('#Mem_ID').select2({
+            placeholder: '-- Pilih Karyawan --',
+            allowClear: true,
+            theme: "bootstrap4",
+            width: '100%',
+            minimumInputLength: 0,
+            ajax: {
+                url: '{{ route('keamanan.member.searchEmployees') }}',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return {
+                        term: params.term || '',
+                        page: params.page || 1,
+                        load_all: params.term ? 0 : 1
+                    };
+                },
+                processResults: function(data, params) {
+                    params.page = params.page || 1;
+                    return {
+                        results: data.results || [],
+                        pagination: {
+                            more: data.pagination?.more || false
+                        }
+                    };
+                },
+                cache: true
             },
-            processResults: function(data, params) {
-                params.page = params.page || 1;
-                return {
-                    results: data.results || [],
-                    pagination: {
-                        more: data.pagination?.more || false
-                    }
-                };
+            templateResult: function(data) {
+                if (data.loading) return data.text;
+                return data.text || '-- Pilih Karyawan --';
             },
-            cache: true
-        },
-        templateResult: function(data) {
-            if (data.loading) return data.text;
-            return data.text || '-- Pilih Karyawan --';
-        },
-        templateSelection: function(data) {
-            if (data.id === '') return data.text;
-            if (data.birth_date) {
-                populateUserDataFromSelect2(data);
+            templateSelection: function(data) {
+                if (data.id === '') return data.text;
+                if (data.birth_date) {
+                    populateUserDataFromSelect2(data);
+                }
+                return data.text || '-- Pilih Karyawan --';
             }
-            return data.text || '-- Pilih Karyawan --';
-        }
-    });
+        });
+        $('#Mem_ID').on('select2:open', function() {
+            const select = $(this);
+            if (select.find('option').length <= 1 && !select.data('initial-load')) {
+                select.data('initial-load', true);
+                select.select2('search', '');
+            }
+        });
+        if (isEditMode) {
+            const selectedEmployeeId = '{{ $memberToEdit->Mem_ID ?? '' }}';
+            const selectedEmployeeName = '{{ $memberToEdit->Mem_UserName ?? '' }}';
+            const selectedEmployeeBirthDate = '{{ $memberToEdit->employee->emp_DateBorn ?? '' }}';
 
-    // Handle initial data load when dropdown opens
-    $('#Mem_ID').on('select2:open', function() {
-        const select = $(this);
-        if (select.find('option').length <= 1 && !select.data('initial-load')) {
-            select.data('initial-load', true);
-            
-            // Trigger search with empty term to load initial data
-            select.select2('search', '');
-        }
-    });
-
-    // Handle edit mode initialization
-    if (isEditMode) {
-        const selectedEmployeeId = '{{ $memberToEdit->Mem_ID ?? '' }}';
-        const selectedEmployeeName = '{{ $memberToEdit->Mem_UserName ?? '' }}';
-        const selectedEmployeeBirthDate = '{{ $memberToEdit->employee->emp_DateBorn ?? '' }}';
-
-        if (selectedEmployeeId) {
-            const option = new Option(
-                `${selectedEmployeeName} (${selectedEmployeeId})`,
-                selectedEmployeeId,
-                true,
-                true
-            );
-            $('#Mem_ID').append(option).trigger('change');
-            
-            populateUserDataFromSelect2({
-                id: selectedEmployeeId,
-                text: `${selectedEmployeeName} (${selectedEmployeeId})`,
-                birth_date: selectedEmployeeBirthDate ? 
-                    moment(selectedEmployeeBirthDate).format('YYYYMMDD') : null
-            });
-            
-            $('#Mem_ID').prop('disabled', true);
+            if (selectedEmployeeId) {
+                const option = new Option(
+                    `${selectedEmployeeName} (${selectedEmployeeId})`,
+                    selectedEmployeeId,
+                    true,
+                    true
+                );
+                $('#Mem_ID').append(option).trigger('change');
+                populateUserDataFromSelect2({
+                    id: selectedEmployeeId,
+                    text: `${selectedEmployeeName} (${selectedEmployeeId})`,
+                    birth_date: selectedEmployeeBirthDate ? 
+                        moment(selectedEmployeeBirthDate).format('YYYYMMDD') : null
+                });
+                $('#Mem_ID').prop('disabled', true);
+            }
         }
     }
-}
 
-    // Document ready handler
+    // ===================================================================
+    // Eksekusi saat Dokumen Siap
+    // ===================================================================
     $(document).ready(function() {
-        // Initialize DataTable
+        
         $('#dataTable').DataTable();
-
-        // Handle notifications
+        
+        // Notifikasi SweetAlert
         @if(session('success'))
-            Swal.fire({
-                icon: 'success',
-                title: 'Sukses',
-                text: '{{ session('success') }}',
-                timer: 3000,
-                showConfirmButton: false
-            });
+            Swal.fire({ icon: 'success', title: 'Sukses', text: '{{ session('success') }}', timer: 3000, showConfirmButton: false });
         @endif
-
         @if(session('error'))
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: '{{ session('error') }}',
-                timer: 5000
-            });
+            Swal.fire({ icon: 'error', title: 'Error', text: '{{ session('error') }}', timer: 5000 });
         @endif
-
         @if($errors->any())
             Swal.fire({
                 icon: 'error',
                 title: 'Terjadi Kesalahan',
-                html: `
-                    <strong>Validasi gagal:</strong>
-                    <ul class="text-left mt-2">
-                        @foreach ($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                `,
+                html: `<strong>Validasi gagal:</strong><ul class="text-left mt-2">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>`,
                 showConfirmButton: true
             });
         @endif
 
-        // Initialize Select2
+        // Inisialisasi
         initSelect2();
 
-        // Initialize access section based on selected role
+        // Inisialisasi bagian Hak Akses dan Gudang saat halaman dimuat
         const roleIdSelect = document.getElementById('role_id');
         if (roleIdSelect && roleIdSelect.value) {
             toggleAccessSection(roleIdSelect.value);
+
+            const selectedRoleName = $(`#role_id option[value="${roleIdSelect.value}"]`).data('role-name');
+            // Pastikan 'Admin Gudang' adalah nama yang benar
+            if (selectedRoleName === 'Admin Gudang' && memberWarehouses.length > 0) {
+                const warehouseListContainer = document.getElementById('warehouse-list-container');
+                warehouseListContainer.innerHTML = ''; // Kosongkan dulu
+                memberWarehouses.forEach(whId => {
+                    warehouseListContainer.insertAdjacentHTML('beforeend', warehouseRowTemplate(whId));
+                });
+                updateWarehouseSelectOptions();
+            }
         } else {
             document.getElementById('userAccessSection').classList.add('d-none');
         }
 
-        // Role select change handler
+        // Event listener saat Role diganti
         $('#role_id').on('change', function() {
             toggleAccessSection(this.value);
         });
 
-        // Toggle password visibility
+        // Event listener untuk tombol Show/Hide Password
         $('.toggle-password').click(function() {
             const input = $(this).closest('.input-group').find('input');
             const icon = $(this).find('i');
-            
             if (input.attr('type') === 'password') {
                 input.attr('type', 'text');
                 icon.removeClass('fa-eye').addClass('fa-eye-slash');
@@ -528,7 +603,7 @@ function initSelect2() {
             }
         });
 
-        // Delete confirmation
+        // Event listener untuk tombol Hapus
         $('.delete-btn').click(function() {
             const form = $(this).closest('form');
             Swal.fire({
@@ -547,12 +622,33 @@ function initSelect2() {
             });
         });
 
-        // Form validation
+        // Inisialisasi Validasi Parsley
         $('#memberForm').parsley({
             errorClass: 'is-invalid',
             successClass: 'is-valid',
             errorsWrapper: '<div class="invalid-feedback"></div>',
             errorTemplate: '<span></span>'
+        });
+
+        // ===================================================================
+        // Event Listener untuk Gudang
+        // ===================================================================
+        
+        // Tombol Tambah Gudang (+)
+        $('#add-warehouse-btn').on('click', function() {
+            $('#warehouse-list-container').append(warehouseRowTemplate());
+            updateWarehouseSelectOptions();
+        });
+
+        // Tombol Hapus Gudang (Trash)
+        $('#warehouse-list-container').on('click', '.remove-warehouse-btn', function() {
+            $(this).closest('.warehouse-row').remove();
+            updateWarehouseSelectOptions();
+        });
+
+        // Saat memilih gudang, update dropdown lainnya
+        $('#warehouse-list-container').on('change', '.warehouse-select', function() {
+            updateWarehouseSelectOptions();
         });
     });
 </script>
