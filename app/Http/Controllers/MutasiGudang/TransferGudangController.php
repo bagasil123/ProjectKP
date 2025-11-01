@@ -7,6 +7,7 @@ use App\Models\MutasiGudang\TransferDetail;
 use App\Models\MutasiGudang\Warehouse;
 use App\Models\MutasiGudang\GudangOrder;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Exception;
@@ -20,9 +21,29 @@ class TransferGudangController extends Controller
      */
     public function index()
     {
-        // Menggunakan latest() untuk mengurutkan berdasarkan data terbaru.
-        $transfers = TransferHeader::latest('Trx_Auto')->paginate(15);
-        return view('mutasigudang.transfergudang.index', compact('transfers'));
+        $user = Auth::user();
+        $isSuperAdmin = ($user->role_id == 1); // Cek Super Admin
+        $accessibleWarehouses = $user->warehouse_access ?? []; // Ambil hak akses
+
+        // Ambil query dasar untuk Transfer (th_slsgt)
+        $query = \App\Models\MutasiGudang\TransferHeader::with('gudangPengirim', 'gudangPenerima');
+
+        // Jika BUKAN Super Admin, terapkan filter
+        if (!$isSuperAdmin) {
+            // User harus bisa akses Gudang Pengirim (WH_Send)
+            // ATAU Gudang Penerima (WH_Rcv)
+            $query->where(function ($q) use ($accessibleWarehouses) {
+                $q->whereIn('WH_Send', $accessibleWarehouses)
+                  ->orWhereIn('WH_Rcv', $accessibleWarehouses);
+            });
+        }
+        
+        $transfers = $query->orderBy('Trx_Auto', 'desc')->get();
+        
+        // Ambil semua gudang untuk dropdown filter di halaman (jika ada)
+        $warehouses = Warehouse::all(); 
+
+        return view('mutasigudang.transfergudang.index', compact('transfers', 'warehouses'));
     }
 
     /**

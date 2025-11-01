@@ -6,7 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\MutasiGudang\TerimaGudangHeader;
 use App\Models\MutasiGudang\TerimaGudangDetail;
-use App\Models\MutasiGudang\TransferHeader; // Pastikan nama model ini benar
+use App\Models\MutasiGudang\TransferHeader;;   // Untuk mengambil data user
+use App\Models\MutasiGudang\Warehouse; // Pastikan nama model ini benar
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -17,11 +18,29 @@ class TerimaGudangController extends Controller
      */
     public function index()
     {
-        // PERBAIKAN: Mengambil data dan mengirimkannya ke view dengan nama variabel yang benar ($penerimaanList)
-        // Eager load relasi 'transferHeader' untuk efisiensi (menghindari N+1 problem)
-        $penerimaanList = TerimaGudangHeader::with('transferHeader')->latest()->paginate(10);
+        $user = Auth::user();
+        $isSuperAdmin = ($user->role_id == 1); // Cek Super Admin
+        $accessibleWarehouses = $user->warehouse_access ?? []; // Ambil hak akses
 
-        return view('mutasigudang.terimagudang.index', compact('penerimaanList'));
+        // Ambil query dasar untuk Terima Gudang (th_slsgtrcv)
+        $query = \App\Models\MutasiGudang\TerimaGudangHeader::with('gudangPengirim', 'gudangPenerima');
+
+        // Jika BUKAN Super Admin, terapkan filter
+        if (!$isSuperAdmin) {
+            // User harus bisa akses Gudang Pengirim (WH_Send)
+            // ATAU Gudang Penerima (WH_Rcv)
+            $query->where(function ($q) use ($accessibleWarehouses) {
+                $q->whereIn('WH_Send', $accessibleWarehouses)
+                  ->orWhereIn('WH_Rcv', $accessibleWarehouses);
+            });
+        }
+        
+        $terimas = $query->orderBy('Pur_Auto', 'desc')->get();
+        
+        // Ambil semua gudang untuk dropdown filter di halaman (jika ada)
+        $warehouses = Warehouse::all(); 
+
+        return view('mutasigudang.terimagudang.index', compact('terimas', 'warehouses'));
     }
 
     /**

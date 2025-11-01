@@ -105,23 +105,19 @@
                     </div>
                     <div class="col-md-6 mb-3">
                         <label for="pur_warehouse" class="form-label">Lokasi Asal</label>
-                        <select name="pur_warehouse" class="form-control" required {{ $order->pur_status === 'draft' ? '' : 'disabled' }}>
-                            <option value="">-- Pilih Lokasi Asal --</option>
+                        <select name="from_warehouse_id" id="from_warehouse_id" class="form-control" required>
+                            <option value="">Pilih Gudang Pengirim</option>
                             @foreach($warehouses as $warehouse)
-                                <option value="{{ $warehouse->WARE_Name }}" @if($order->pur_warehouse == $warehouse->WARE_Name) selected @endif>
-                                    {{ $warehouse->WARE_Name }}
-                                </option>
+                                <option value="{{ $warehouse->WARE_Auto }}">{{ $warehouse->WARE_Name }}</option>
                             @endforeach
                         </select>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label for="pur_destination">Lokasi Tujuan</label>
-                        <select name="pur_destination" class="form-control" required {{ $order->pur_status === 'draft' ? '' : 'disabled' }}>
-                            <option value="">-- Pilih Gudang Tujuan --</option>
+                        <select name="to_warehouse_id" id="to_warehouse_id" class="form-control" required>
+                            <option value="">Pilih Gudang Penerima</option>
                             @foreach($warehouses as $warehouse)
-                                <option value="{{ $warehouse->WARE_Name }}" @if($order->pur_destination == $warehouse->WARE_Name) selected @endif>
-                                    {{ $warehouse->WARE_Name }}
-                                </option>
+                                <option value="{{ $warehouse->WARE_Auto }}">{{ $warehouse->WARE_Name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -543,6 +539,72 @@ $(document).ready(function() {
         });
     });
     @endif
+    
+    // --- Bagian 1: Memfilter Dropdown Produk ---
+    
+    // Tangkap event 'change' pada dropdown 'Gudang Pengirim'
+    // Kita gunakan ID yang kita set di HTML: #from_warehouse_id
+    $(document).on('change', '#from_warehouse_id', function() {
+        var warehouseId = $(this).val();
+        
+        // Temukan dropdown produk. Kita beri class 'product-select'
+        // (Anda harus menambahkan class="product-select" ke dropdown produk Anda di HTML)
+        var productDropdown = $(this).closest('.modal-body').find('.product-select'); 
+
+        if (!warehouseId) {
+            productDropdown.empty().append('<option value="">Pilih Gudang Pengirim dulu</option>');
+            return;
+        }
+
+        productDropdown.empty().append('<option value="">Memuat produk...</option>');
+        
+        // Panggil route AJAX yang kita buat di routes/web.php
+        $.ajax({
+            url: '{{ url('/mutasigudang/get-products-by-warehouse') }}/' + warehouseId,
+            type: 'GET',
+            dataType: 'json',
+            success: function(products) {
+                productDropdown.empty().append('<option value="">Pilih Produk</option>');
+                
+                if (products.length === 0) {
+                     productDropdown.empty().append('<option value="">Tidak ada produk di gudang ini</option>');
+                }
+
+                // Isi dropdown produk dengan data baru
+                $.each(products, function(key, product) {
+                    productDropdown.append(
+                        // Kita simpan harga dan nama di data-attribute
+                        '<option value="' + product.kode_produk + '" ' + 
+                                'data-name="' + product.nama_produk + '" ' +
+                                'data-price="' + product.harga_jual + '">' + // Menggunakan harga_jual
+                            product.nama_produk + ' (' + product.kode_produk + ')' +
+                        '</option>'
+                    );
+                });
+            },
+            error: function() {
+                productDropdown.empty().append('<option value="">Gagal memuat produk</option>');
+            }
+        });
+    });
+
+    // --- Bagian 2: Auto-fill Harga dan Nama Produk ---
+    
+    // Tangkap event 'change' pada dropdown produk (yang punya class 'product-select')
+    $(document).on('change', '.product-select', function() {
+        var selectedOption = $(this).find('option:selected');
+        
+        // Ambil data dari data-attribute
+        var price = selectedOption.data('price') || 0;
+        var name = selectedOption.data('name') || '';
+
+        // Cari input harga dan nama di baris yang sama (closest 'tr')
+        var row = $(this).closest('tr');
+        
+        // Ganti '.product-price' dan '.product-name' dengan class/name input Anda
+        row.find('.product-price').val(price); // Asumsi input harga punya class .product-price
+        row.find('.product-name').val(name); // Asumsi input nama punya class .product-name
+    });
 
 });
 </script>

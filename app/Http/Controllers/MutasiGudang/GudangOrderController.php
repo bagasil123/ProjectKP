@@ -9,6 +9,7 @@ use App\Models\MutasiGudang\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Models\Inventory\Dtproduk;
 use Carbon\Carbon;
 use Exception;
 
@@ -34,12 +35,37 @@ class GudangOrderController extends Controller
 
         return $prefix . $nextNumber; // PG-301225001
     }
+    
     public function index()
     {
-        $orders = GudangOrder::orderBy('Pur_Date', 'desc')->paginate(15);
-        return view('mutasigudang.gudangorder.index', compact('orders'));
-    }
+        $user = Auth::user();
+        $isSuperAdmin = ($user->role_id == 1);
+        $accessibleWarehouses = $user->warehouse_access ?? [];
 
+        // Ambil query dasar untuk Gudang Order
+        $query = GudangOrder::with('gudangPengirim', 'gudangPenerima');
+
+        // Ambil daftar gudang untuk dropdown filter
+        if ($isSuperAdmin) {
+            $warehouses = Warehouse::all();
+        } else {
+            // User biasa HANYA bisa melihat gudang yang diizinkan
+            $warehouses = Warehouse::whereIn('WARE_Auto', $accessibleWarehouses)->get();
+            
+            // Filter data tabel: user harus bisa akses PENGIRIM atau PENERIMA
+            $query->where(function ($q) use ($accessibleWarehouses) {
+                // 'from_warehouse_id' adalah kolom di tabel th_gudangorder
+                // 'to_warehouse_id' adalah kolom di tabel th_gudangorder
+                $q->whereIn('from_warehouse_id', $accessibleWarehouses)
+                  ->orWhereIn('to_warehouse_id', $accessibleWarehouses);
+            });
+        }
+        
+        $orders = $query->orderBy('Pur_Auto', 'desc')->paginate(15);
+
+        // Kirim data 'orders' dan 'warehouses' ke view
+        return view('mutasigudang.gudangorder.index', compact('orders', 'warehouses'));
+    }
 
     public function create()
     {
@@ -194,6 +220,26 @@ class GudangOrderController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()]);
         }
     }
+
+    /**
+     * Fungsi baru untuk mengambil data produk via AJAX.
+     * Dihubungkan ke route 'gudangorder.getProducts'
+     */
+    public function getProductsByWarehouse($warehouse_id)
+    {
+        // Cek jika ID yang dikirim adalah 'all' (untuk Super Admin)
+        if ($warehouse_id == 'all') {
+             $products = Dtproduk::all();
+        } else {
+            // Ambil produk dari tabel m_product (model Dtproduk) 
+            // berdasarkan kolom WARE_Auto (sesuai database produk Anda)
+            $products = Dtproduk::where('WARE_Auto', $warehouse_id)->get();
+        }
+
+        // Kembalikan data sebagai JSON
+        return response()->json($products);
+    }
+
     public function destroyDetail($orderId, $detailId)
     {
         $detail = GudangOrderDetail::findOrFail($detailId);
