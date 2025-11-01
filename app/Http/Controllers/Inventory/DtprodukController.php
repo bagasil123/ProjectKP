@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Inventory;
 use App\Http\Controllers\Controller;
 use App\Models\Inventory\Dtproduk;
 use App\Models\Inventory\Supplier;
+use App\Models\MutasiGudang\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -22,8 +23,10 @@ class DtprodukController extends Controller
             ->orderBy('nama_supplier', 'asc')
             ->get()
             ->unique('nama_supplier');
-        
-        return view('inventory.dataproduk.index', compact('dtproduks', 'suppliers'));
+
+        $warehouses = Warehouse::all();
+    
+        return view('inventory.dataproduk.index', compact('dtproduks', 'suppliers', 'warehouses'));
     }
 
     public function store(Request $request)
@@ -39,7 +42,12 @@ class DtprodukController extends Controller
 
         $data = $request->all();
         $data['user_id'] = Auth::id(); // Jika diperlukan
-        
+
+        // Include WARE_Auto into the data array before creating the model
+        if ($request->has('WARE_Auto')) {
+            $data['WARE_Auto'] = $request->WARE_Auto;
+        }
+
         $produk = Dtproduk::create($data);
 
         return response()->json([
@@ -60,8 +68,12 @@ class DtprodukController extends Controller
             'harga_jual' => 'required|numeric|min:0',
         ]);
 
-        $produk = Dtproduk::findOrFail($id);
-        $produk->update($request->all());
+    $produk = Dtproduk::findOrFail($id);
+    $data = $request->all();
+    if ($request->has('WARE_Auto')) {
+        $data['WARE_Auto'] = $request->WARE_Auto;
+    }
+    $produk->update($data);
 
         return response()->json([
             'success' => true,

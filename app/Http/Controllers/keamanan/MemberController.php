@@ -12,9 +12,9 @@ use App\Models\MutasiGudang\Warehouse; // Pastikan ini ada
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 use Illuminate\Validation\Rule;
-// Tambahan jika Anda tidak punya helper `commonData`
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 use App\Models\keamanan\menu; 
 
 class MemberController extends Controller
@@ -28,12 +28,7 @@ class MemberController extends Controller
         $data['members'] = Member::with('role', 'employee')->get();
         $data['roles'] = Role::all();
         $data['warehouses'] = Warehouse::all(); // Mengirim data semua gudang
-        $data['memberWarehouses'] = []; // Default untuk form 'Buat Baru'
-
-        // Variabel duplikat ini tidak diperlukan jika sudah ada di $data
-        // $members = Member::with('role')->get(); 
-        // $roles = Role::all(); 
- 
+        $data['memberWarehouses'] = [];
         $karyawans = Employee::all(); // Ini juga mungkin duplikat, tapi biarkan
  
         $memberToEdit = null;
@@ -88,19 +83,29 @@ class MemberController extends Controller
             'akses_role.*.ubah' => 'nullable|in:1',
             'akses_role.*.hapus' => 'nullable|in:1',
             'warehouses' => 'nullable|array',
-            'warehouses.*' => 'string|exists:m_warehouse,WARE_Auto'
+            'warehouse_access.*' => [
+                'string',
+                Rule::exists('m_warehouse', 'WARE_Auto')->whereNot('WARE_Auto', 0),
+            ]
         ]);
 
         DB::beginTransaction(); 
         try {
+
+            $warehouseData = $request->warehouse_access;
+            
+
+            if ($request->role_id == 1) {
+                $warehouseData = ["0"];
+            }
  
             $role = Role::findOrFail($request->role_id);
             $warehouseData = null; 
 
-            // Ganti 'Admin Gudang' jika nama role-nya beda
             if ($role->name == 'Admin Gudang' && $request->has('warehouses')) {
                 $warehouseData = $request->warehouses;
             }
+
 
             $member = Member::create([
                 'Mem_ID' => $request->Mem_ID,
@@ -165,16 +170,26 @@ class MemberController extends Controller
             'akses_role.*.ubah' => 'nullable|in:1',
             'akses_role.*.hapus' => 'nullable|in:1',
             'warehouses' => 'nullable|array',
-            'warehouses.*' => 'string|exists:m_warehouse,WARE_Auto'
+            'warehouse_access.*' => [
+                'string',
+                Rule::exists('m_warehouse', 'WARE_Auto')->whereNot('WARE_Auto', 0),
+            ]
         ]);
 
         DB::beginTransaction();
         try {
             
+
+            $warehouseData = $request->warehouse_access;
+            
+
+            if ($request->role_id == 1) {
+                $warehouseData = ["0"];
+            }
+
             $role = Role::findOrFail($request->role_id);
             $warehouseData = null; 
 
-            // Ganti 'Admin Gudang' jika nama role-nya beda
             if ($role->name == 'Admin Gudang' && $request->has('warehouses')) {
                 $warehouseData = $request->warehouses;
             }

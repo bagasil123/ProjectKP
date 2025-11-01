@@ -2,13 +2,15 @@
 
 namespace App\Models\keamanan;  
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
+use App\Models\keamanan\Role;
 
 class Member extends Authenticatable
 {
-    use Notifiable,HasRoles;
+    use HasFactory, Notifiable,HasRoles;
     protected $table = 'm_members';
     protected $primaryKey = 'Mem_Auto';
 

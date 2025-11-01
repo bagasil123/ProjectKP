@@ -7,11 +7,21 @@
         @if(session('success'))
             <div class="alert alert-success">{{ session('success') }}</div>
         @endif
+        
+        {{-- BAGIAN YANG DIUBAH ADA DI BAWAH INI --}}
         <div class="mb-3">
+            {{-- Tombol 'Tambah Gudang' Anda yang sudah ada --}}
             <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#warehouseModal">
                 <i class="fas fa-plus"></i> Tambah Gudang
             </button>
+            
+            {{-- INI TOMBOL BARU "LAPORAN STOK" --}}
+            {{-- Kita pakai ms-2 (margin-start) untuk memberi jarak --}}
+            <a href="{{ route('inventory.stock_report') }}" class="btn btn-success mb-3 ms-2">
+                <i class="fas fa-file-alt"></i> Laporan Stok
+            </a>
         </div>
+        {{-- BATAS AKHIR PERUBAHAN --}}
 
 
         <div class="card shadow mb-4">
@@ -82,7 +92,6 @@
 
     </div>
 
-    <!-- Modal Tambah/Edit -->
     <div class="modal fade" id="warehouseModal" tabindex="-1" aria-labelledby="warehouseModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <form method="POST" id="warehouseForm">
@@ -122,7 +131,6 @@
                             </div>
                         </div>
 
-                        <!-- Perbaikan: Input Web sekarang berada di dalam row-nya sendiri agar rapi -->
                         <div class="row mb-3">
                             <label class="col-sm-3 col-form-label">Web</label>
                             <div class="col-sm-9">
@@ -160,7 +168,6 @@
 </div>
 @endsection
 
-<!-- Script -->
 @push('scripts')
 <script>
 $(document).ready(function() {

@@ -50,6 +50,7 @@ use App\Http\Controllers\MutasiGudang\WarehouseController;
 use App\Http\Controllers\MutasiGudang\GudangOrderController;
 use App\Http\Controllers\MutasiGudang\TransferGudangController;
 use App\Http\Controllers\MutasiGudang\TerimaGudangController;
+use App\Http\Controllers\Inventory\StockReportController;
 use App\Http\Controllers\TestController;
 /*
 |--------------------------------------------------------------------------
@@ -100,6 +101,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/home', 'HomeController@index')->name('home');
     Route::get('/profile', 'ProfileController@index')->name('profile');
     Route::put('/profile', 'ProfileController@update')->name('profile.update');
+    
 });
 
 Route::middleware(['auth', 'can.access.menu'])->group(function () {
@@ -238,6 +240,9 @@ Route::middleware(['auth', 'can.access.menu'])->group(function () {
         Route::delete('/penerimaan/{penerimaanId}/details/{detailId}', [PenerimaanController::class, 'deleteDetail'])->name('penerimaan.delete-detail');
         Route::post('/penerimaan/{id}/publish', [PenerimaanController::class, 'publish'])->name('penerimaan.publish');
         Route::delete('/penerimaan/{id}/cancel', [PenerimaanController::class, 'cancel'])->name('penerimaan.cancel');
+        
+        // ##### TAMBAHKAN ROUTE LAPORAN STOK DI SINI #####
+        Route::get('/stock-report', [StockReportController::class, 'index'])->name('inventory.stock_report');
     });
 
     // --- Keamanan Routes ---
@@ -427,4 +432,3 @@ Route::middleware(['auth', 'can.access.menu'])->group(function () {
     });
 
 });
-

@@ -4,6 +4,10 @@ namespace App\Models\Inventory;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\MutasiGudang\Warehouse;
+use App\Models\Inventory\Supplier;
+use App\Models\Inventory\Kelompokproduk;  
+use App\Models\Inventory\Satuanproduk;
 
 class Dtproduk extends Model
 {
@@ -18,6 +22,7 @@ class Dtproduk extends Model
         'qty',
         'harga_beli',
         'harga_jual',
+        'WARE_Auto',
     ];
 
     public function supplier()
@@ -53,5 +58,20 @@ class Dtproduk extends Model
         $this->harga_beli = $price;
         $this->save();
         return $this;
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class, 'WARE_Auto', 'WARE_Auto');
+    }
+
+    public function kategori()
+    {
+        return $this->belongsTo(Kelompokproduk::class, 'product_category', 'id');
+    } 
+    
+    public function satuan()
+    {
+        return $this->belongsTo(Satuanproduk::class, 'product_uom', 'id');
     }
 }

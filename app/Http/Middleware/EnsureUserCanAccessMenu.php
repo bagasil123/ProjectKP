@@ -31,18 +31,6 @@ class EnsureUserCanAccessMenu
         // Konversi route name ke menu slug
         $menuSlug = $this->convertRouteToMenuSlug($routeName);
 
-        // --- DEBUGGING: TAMPILKAN HASILNYA ---
-        // Hapus baris dd() ini setelah debugging selesai.
-        // dd([
-        //     'full_route_name' => $routeName,
-        //     'calculated_menu_slug' => $menuSlug,
-        //     'user_role_name' => Auth::user()->role->name ?? 'No Role',
-        //     'menus_allowed_for_user_slugs' => Auth::user()->role->menus->pluck('slug')->toArray() ?? [],
-        //     'is_slug_in_allowed_list' => (Auth::user()->role && Auth::user()->role->menus->contains('slug', $menuSlug)),
-        //     'gate_allows_access' => Gate::allows('access_menu', $menuSlug)
-        // ]);
-        // --- AKHIR DEBUGGING ---
-
         // Jika user tidak memiliki akses ke menu tersebut
         if (!Gate::allows('access_menu', $menuSlug)) {
             // Jika request adalah AJAX, kembalikan JSON error
@@ -68,7 +56,18 @@ class EnsureUserCanAccessMenu
         $specialMappings = [
             'home' => 'dashboard',
             'profile' => 'profile',
-            'rekap.generate' => 'absensi'
+            'rekap.generate' => 'absensi',
+            
+            // =======================================================
+            // 
+            // TAMBAHKAN BARIS INI:
+            // Ini akan membuat route 'inventory.stock_report'
+            // diperiksa menggunakan hak akses menu 'warehouse' (Mutasi Gudang)
+            //
+            'inventory.stock_report' => 'warehouse',
+            // 
+            // =======================================================
+
             // Tambahkan mapping khusus lainnya di sini
         ];
 
