@@ -57,18 +57,7 @@ class EnsureUserCanAccessMenu
             'home' => 'dashboard',
             'profile' => 'profile',
             'rekap.generate' => 'absensi',
-            
-            // =======================================================
-            // 
-            // TAMBAHKAN BARIS INI:
-            // Ini akan membuat route 'inventory.stock_report'
-            // diperiksa menggunakan hak akses menu 'warehouse' (Mutasi Gudang)
-            //
             'inventory.stock_report' => 'warehouse',
-            // 
-            // =======================================================
-
-            // Tambahkan mapping khusus lainnya di sini
         ];
 
         if (array_key_exists($routeName, $specialMappings)) {
@@ -131,6 +120,8 @@ class EnsureUserCanAccessMenu
             // Aksi Printing
             'print',
             'printAll',
+
+            'getProducts',
         ];
 
         if (count($parts) > 1 && in_array($action, $standardActions)) {

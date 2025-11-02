@@ -265,15 +265,6 @@ Route::middleware(['auth', 'can.access.menu'])->group(function () {
     // --- Gudang Routes ---
     Route::prefix('mutasigudang')->middleware(['auth'])->group(function () {
 
-        //Ambil data produk
-        Route::get('/mutasigudang/get-products-by-warehouse/{warehouse_id}', [App\Http\Controllers\MutasiGudang\GudangOrderController::class, 'getProductsByWarehouse'])
-            ->name('gudangorder.getProducts');
-
-        // Route baru untuk mengambil produk berdasarkan gudang
-        Route::get('/mutasigudang/get-products-by-warehouse/{warehouse_id}', [App\Http\Controllers\MutasiGudang\GudangOrderController::class, 'getProductsByWarehouse'])
-            ->name('gudangorder.getProducts')
-            ->middleware(['auth', 'EnsureUserCanAccessMenu']);
-
         // Gudang
         Route::resource('warehouse', WarehouseController::class);
 
@@ -286,6 +277,8 @@ Route::middleware(['auth', 'can.access.menu'])->group(function () {
         Route::get('gudangorder/{id}/edit', [GudangOrderController::class, 'edit'])->name('gudangorder.edit');
         Route::get('gudangorder/{order}', [GudangOrderController::class, 'show'])->name('gudangorder.show');
         Route::delete('gudangorder/{id}', [GudangOrderController::class, 'destroy'])->name('gudangorder.destroy');
+        Route::get('get-products-by-warehouse/{warehouse_id}', [GudangOrderController::class, 'getProductsByWarehouse'])
+        ->name('gudangorder.getProducts');
         Route::put('gudangorder/{id}/update-header', [GudangOrderController::class, 'updateHeader'])->name('gudangorder.updateHeader');
         Route::put('gudangorder/{order}/submit', [GudangOrderController::class, 'submit'])->name('gudangorder.submit');
         Route::post('gudangorder/detail/store', [GudangOrderController::class, 'storeDetail'])->name('gudangorder.storeDetail');

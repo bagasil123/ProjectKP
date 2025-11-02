@@ -11,11 +11,11 @@ class GudangOrderDetail extends Model
 
 
     protected $table = 'td_gudangorderdetail';
-    protected $primaryKey = 'Pur_Det_Auto'; // Sesuaikan jika berbeda
+    protected $primaryKey = 'Pur_Det_Auto';
     public $timestamps = false;
 
     protected $fillable = [
-        'Pur_Auto', // Foreign key ke header
+        'Pur_Auto',
         'Pur_ProdCode',
         'pur_prodname',
         'Pur_UOM',
@@ -25,5 +25,10 @@ class GudangOrderDetail extends Model
         'Pur_Taxes',
         'Pur_NettPrice',
     ];
+
+    public function header()
+    {
+        return $this->belongsTo(GudangOrder::class, 'pur_ordernumber', 'pur_ordernumber');
+    }
 
 }

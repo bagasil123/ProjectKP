@@ -15,11 +15,6 @@ class GudangOrder extends Model
 
     protected $table = 'th_gudangorder';
     protected $primaryKey = 'Pur_Auto';
-
-    /**
-     * PERBAIKAN: Menonaktifkan fitur timestamps otomatis (created_at & updated_at).
-     * Tambahkan baris ini. Laravel tidak akan lagi mencari atau mencoba mengisi kolom ini.
-     */
     public $timestamps = false;
 
     protected $fillable = [
@@ -40,12 +35,12 @@ class GudangOrder extends Model
 
     public function gudangPengirim()
     {
-        return $this->belongsTo(Warehouse::class, 'from_warehouse_id', 'WARE_Auto');
+        return $this->belongsTo(Warehouse::class, 'pur_warehouse', 'WARE_Auto');
     }
 
     public function gudangPenerima()
     {
-        return $this->belongsTo(Warehouse::class, 'to_warehouse_id', 'WARE_Auto');
+        return $this->belongsTo(Warehouse::class, 'pur_destination', 'WARE_Auto');
     }
 
 
@@ -76,10 +71,6 @@ class GudangOrder extends Model
         );
     }
 
-    /**
-     * ACCESSOR: Menghitung Grand Total (Harga Bersih) dari semua detail.
-     * Dapat dipanggil di view dengan: $order->grand_total
-     */
     protected function grandTotal(): Attribute
     {
         return Attribute::make(
