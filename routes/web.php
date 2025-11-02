@@ -275,28 +275,28 @@ Route::middleware(['auth', 'can.access.menu'])->group(function () {
         Route::get('gudangorder', [GudangOrderController::class, 'index'])->name('gudangorder.index');
         Route::get('gudangorder/create', [GudangOrderController::class, 'create'])->name('gudangorder.create');
         Route::get('gudangorder/{id}/edit', [GudangOrderController::class, 'edit'])->name('gudangorder.edit');
-        Route::get('gudangorder/{order}', [GudangOrderController::class, 'show'])->name('gudangorder.show');
+        Route::get('gudangorder/{id}', [GudangOrderController::class, 'show'])->name('gudangorder.show');
+        Route::post('gudangorder', [GudangOrderController::class, 'store'])->name('gudangorder.store');
         Route::delete('gudangorder/{id}', [GudangOrderController::class, 'destroy'])->name('gudangorder.destroy');
-        Route::get('get-products-by-warehouse/{warehouse_id}', [GudangOrderController::class, 'getProductsByWarehouse'])
-        ->name('gudangorder.getProducts');
+        Route::get('get-products-by-warehouse/{warehouse_id}', [GudangOrderController::class, 'getProductsByWarehouse'])->name('gudangorder.getProducts');
+        Route::post('gudangorder/store-detail', [GudangOrderController::class, 'storeDetail'])->name('gudangorder.storeDetail');
         Route::put('gudangorder/{id}/update-header', [GudangOrderController::class, 'updateHeader'])->name('gudangorder.updateHeader');
-        Route::put('gudangorder/{order}/submit', [GudangOrderController::class, 'submit'])->name('gudangorder.submit');
-        Route::post('gudangorder/detail/store', [GudangOrderController::class, 'storeDetail'])->name('gudangorder.storeDetail');
-        Route::delete('gudangorder/{order}/details/{detail}', [GudangOrderController::class, 'destroyDetail'])->name('gudangorder.destroyDetail');
+        Route::delete('gudangorder/{orderId}/details/{detailId}', [GudangOrderController::class, 'destroyDetail'])->name('gudangorder.destroyDetail');
+        Route::put('gudangorder/{id}/submit', [GudangOrderController::class, 'submit'])->name('gudangorder.submit');
 
         // Transfer Gudang
         Route::get('transfergudang', [TransferGudangController::class, 'index'])->name('transfergudang.index');
         Route::get('transfergudang/create', [TransferGudangController::class, 'create'])->name('transfergudang.create');
         Route::get('transfergudang/{id}/edit', [TransferGudangController::class, 'edit'])->name('transfergudang.edit');
-        Route::get('/transfergudang/{transfer}', [TransferGudangController::class, 'show'])->name('transfergudang.show');
-        Route::post('transfergudang/detail/store', [TransferGudangController::class, 'storeDetail'])->name('transfergudang.storeDetail');
+        Route::get('transfergudang/{id}', [TransferGudangController::class, 'show'])->name('transfergudang.show'); 
         Route::delete('transfergudang/{id}', [TransferGudangController::class, 'destroy'])->name('transfergudang.destroy');
         Route::put('transfergudang/{id}/update-header', [TransferGudangController::class, 'updateHeader'])->name('transfergudang.updateHeader');
-        Route::delete('transfergudang/{transfer}/details/{detail}', [TransferGudangController::class, 'destroyDetail'])->name('transfergudang.destroyDetail');
-        Route::put('transfergudang/{transfer}/submit', [TransferGudangController::class, 'submit'])->name('transfergudang.submit');
+        Route::put('transfergudang/{id}/submit', [TransferGudangController::class, 'submit'])->name('transfergudang.submit'); 
+        Route::post('transfergudang/detail/store', [TransferGudangController::class, 'storeDetail'])->name('transfergudang.storeDetail');
+        Route::delete('transfergudang/{id}/details/{detailId}', [TransferGudangController::class, 'destroyDetail'])->name('transfergudang.destroyDetail');
         Route::get('transfergudang/fetch-details/{permintaanId}', [TransferGudangController::class, 'fetchPermintaanDetails'])->name('transfergudang.fetchDetails');
         Route::post('transfergudang/{id}/sync-details', [TransferGudangController::class, 'syncDetailsFromPermintaan'])->name('transfergudang.syncDetails');
-
+        
         //PenerimaanGudang
         Route::get('terimagudang', [TerimaGudangController::class, 'index'])->name('terimagudang.index');
         Route::get('terimagudang/create', [TerimaGudangController::class, 'create'])->name('terimagudang.create');

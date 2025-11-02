@@ -4,35 +4,36 @@ namespace App\Models\MutasiGudang;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TransferDetail extends Model
 {
     use HasFactory;
 
+    // Sesuaikan dengan nama tabel detail transfer Anda
     protected $table = 'td_slsgt';
-    protected $primaryKey = 'id';
-    public $timestamps = true;
+    
+    // Sesuai dengan view Anda (data-id="{{ $detail->id }}")
+    protected $primaryKey = 'id'; // Asumsi 'id'
+    public $timestamps = false;
+    public $incrementing = true;
 
+    // Kolom-kolom dari view Anda
     protected $fillable = [
+        'Trx_Auto',         // Foreign Key
         'trx_number',
         'Trx_ProdCode',
         'trx_prodname',
         'trx_uom',
         'Trx_QtyTrx',
-        'Trx_QtyRcv',
-        'Trx_QtyReject',
-        'trx_cogs',
-        'trx_posting',
-        'trx_rcvposting',
-        'Trx_UpdateID',
-        'trx_discount',  // <-- PASTIKAN ADA
-        'trx_taxes',     // <-- PASTIKAN ADA
-        'trx_nettprice', // <-- PASTIKAN ADA
+        'trx_cogs',         // Harga
+        'trx_discount',
+        'trx_taxes',
+        'trx_nettprice',    // Subtotal
     ];
 
-    public function header(): BelongsTo
+    // Relasi kembali ke Header
+    public function header()
     {
-        return $this->belongsTo(TransferHeader::class, 'trx_number', 'trx_number');
+        return $this->belongsTo(TransferHeader::class, 'Trx_Auto', 'Trx_Auto');
     }
 }
