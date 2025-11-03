@@ -17,7 +17,7 @@ class TerimaGudangHeader extends Model
         'Rcv_WareCode', // Gudang Penerima
         'Rcv_From',     // Gudang Pengirim
         'Rcv_Note',
-        'Rcv_UserID',
+        'user_id',
         'rcv_posting',  // Asumsi nama kolom status posting
         'ref_trx_auto', // Kolom referensi ke transfer
     ];

@@ -57,6 +57,7 @@
                                 <a href="{{ route('gudangorder.show', $order->Pur_Auto) }}" class="btn btn-sm btn-info" title="Lihat">
                                     <i class="fas fa-eye"></i>
                                 </a>
+
                             </td>
                         </tr>
                         @empty

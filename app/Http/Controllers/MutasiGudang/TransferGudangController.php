@@ -232,21 +232,14 @@ class TransferGudangController extends Controller
     public function showInTransit()
     {
         try {
-            Log::info('=== ACCESSING IN_TRANSIT METHOD ===');
-            
             $user = Auth::user();
             $isSuperAdmin = ($user->role_id == 1);
             $accessibleWarehouses = $user->warehouse_access ?? [];
 
-            Log::info('User: ' . $user->name . ', Role: ' . $user->role_id);
-            Log::info('Accessible Warehouses: ' . json_encode($accessibleWarehouses));
-
-            // Query transfer yang sudah diposting (status 'T')
-            $query = TransferHeader::with([
-                'details', 
-                'gudangPengirim', 
-                'gudangPenerima'
-            ])->where('trx_posting', 'T');
+            // Query transfer yang sudah diposting (T) dan BELUM diterima
+            $query = TransferHeader::with(['details', 'gudangPengirim', 'gudangPenerima'])
+                ->where('trx_posting', 'T')
+                ->whereDoesntHave('penerimaan'); // Hanya yang belum ada penerimaan
 
             // Filter berdasarkan akses gudang jika bukan super admin
             if (!$isSuperAdmin && !empty($accessibleWarehouses)) {
@@ -260,18 +253,10 @@ class TransferGudangController extends Controller
                                         ->orderBy('Trx_Auto', 'desc')
                                         ->get();
 
-            Log::info('Found transfers: ' . $inTransitTransfers->count());
-
-            // Gunakan view yang baru
-            return view('mutasigudang.in_transit.index', [
-                'inTransitTransfers' => $inTransitTransfers
-            ]);
+            return view('mutasigudang.in_transit.index', compact('inTransitTransfers'));
 
         } catch (\Exception $e) {
             Log::error('Error in showInTransit: ' . $e->getMessage());
-            Log::error('File: ' . $e->getFile() . ' Line: ' . $e->getLine());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
-            
             return redirect()->route('transfergudang.index')
                             ->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
         }

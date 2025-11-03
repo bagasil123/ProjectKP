@@ -257,6 +257,10 @@ class TerimaGudangController extends Controller
         return response()->json($data);
     }
     
+    /**
+ * (PERBAIKAN) Menambah/membuat stok di gudang tujuan
+ * Dengan composite key: kode_produk + WARE_Auto
+ */
     private function addStockToWarehouse($prodCode, $warehouseId, $qty)
     {
         if ($qty <= 0) return;
@@ -265,14 +269,14 @@ class TerimaGudangController extends Controller
         try {
             Log::info("Adding stock: Product {$prodCode}, Warehouse {$warehouseId}, Qty {$qty}");
 
-            // 1. Cari stok produk di gudang TUJUAN
+            // 1. Cari stok produk di gudang TUJUAN dengan composite key
             $stock = Dtproduk::where('kode_produk', $prodCode)
                             ->where('WARE_Auto', $warehouseId)
-                            ->lockForUpdate() // Lock untuk prevent race condition
+                            ->lockForUpdate()
                             ->first();
                             
             if ($stock) {
-                // 2. Jika sudah ada, tambahkan stoknya - GUNAKAN 'qty' BUKAN 'stok'
+                // 2. Jika sudah ada, tambahkan stoknya
                 $oldQty = $stock->qty;
                 $stock->qty += $qty;
                 $stock->save();
@@ -291,11 +295,10 @@ class TerimaGudangController extends Controller
                     'kode_produk' => $prodCode,
                     'nama_produk' => $productTemplate->nama_produk,
                     'supplier_id' => $productTemplate->supplier_id,
-                    'qty' => $qty, // ✅ GUNAKAN 'qty' BUKAN 'stok'
+                    'qty' => $qty,
                     'harga_beli' => $productTemplate->harga_beli,
                     'harga_jual' => $productTemplate->harga_jual,
-                    'WARE_Auto' => $warehouseId,
-                    // Tambahkan field lain jika diperlukan
+                    'WARE_Auto' => $warehouseId, // INI YANG MEMBEDAKAN
                     'kelompok' => $productTemplate->kelompok,
                     'satuan' => $productTemplate->satuan,
                 ]);
@@ -308,7 +311,7 @@ class TerimaGudangController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error("Failed to add stock: " . $e->getMessage());
-            throw $e; // Re-throw agar transaction utama juga rollback
+            throw $e;
         }
     }
 
