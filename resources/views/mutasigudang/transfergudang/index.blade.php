@@ -29,9 +29,17 @@
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
             <h6 class="m-0 font-weight-bold text-primary">{{ __('Daftar Transfer') }}</h6>
-            <a href="{{ route('transfergudang.create') }}" class="btn btn-primary btn-sm">
-                <i class="fas fa-plus fa-sm"></i> {{ __('Buat Transfer Baru') }}
-            </a>
+            
+            {{-- (PERBAIKAN UI) Tombol baru untuk Stok Menggantung --}}
+            <div>
+                <a href="{{ route('transfergudang.inTransit') }}" class="btn btn-info btn-sm mr-2">
+                    <i class="fas fa-truck fa-sm"></i> {{ __('Barang Dalam Perjalanan') }}
+                </a>
+                <a href="{{ route('transfergudang.create') }}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus fa-sm"></i> {{ __('Buat Transfer Baru') }}
+                </a>
+            </div>
+            
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -55,8 +63,8 @@
                             <tr>
                                 <td><strong>{{ $transfer->trx_number }}</strong></td>
                                 <td>{{ \Carbon\Carbon::parse($transfer->Trx_Date)->isoFormat('DD MMMM YYYY') }}</td>
-                                <td>{{ $transfer->Trx_WareCode ?? '-' }}</td>
-                                <td>{{ $transfer->Trx_RcvNo ?? '-' }}</td>
+                                <td>{{ $transfer->gudangPengirim->WARE_Name ?? '-' }}</td>
+                                <td>{{ $transfer->gudangPenerima->WARE_Name ?? '-' }}</td>
                                 <td class="text-end">{{ number_format($transfer->bruto_from_permintaan, 2) }}</td>
                                 <td class="text-end">{{ number_format($transfer->diskon_from_permintaan, 2) }}</td>
                                 <td class="text-end">{{ number_format($transfer->pajak_from_permintaan, 2) }}</td>
@@ -99,7 +107,6 @@
         <a href="{{ route('transfergudang.index') }}" class="btn btn-secondary"><i class="fa fa-arrow-left"></i> Kembali ke Daftar</a>
     </div>
 
-    <!-- FORM HEADER UTAMA -->
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex align-items-center justify-content-between">
             <h6 class="m-0 font-weight-bold text-primary">{{ $transfer->trx_posting == 'F' ? 'Form Edit Transfer' : 'Detail Transfer' }}</h6>
@@ -111,11 +118,9 @@
                 <input type="hidden" id="transferId" value="{{ $transfer->Trx_Auto }}">
 
                 <div class="row">
-                    <!-- Baris 1: No Transaksi dan Tanggal -->
                     <div class="col-md-6 mb-3"><label for="trx_number">No Transaksi</label><input type="text" id="trx_number" class="form-control" value="{{ $transfer->trx_number }}" readonly></div>
                     <div class="col-md-6 mb-3"><label for="Trx_Date">Tanggal Transaksi</label><input type="date" id="Trx_Date" class="form-control" name="Trx_Date" value="{{ $transfer->Trx_Date ? \Carbon\Carbon::parse($transfer->Trx_Date)->format('Y-m-d') : date('Y-m-d') }}" {{ $transfer->trx_posting == 'F' ? '' : 'readonly' }}></div>
 
-                    <!-- BLOK OTOMATISASI (Hanya muncul saat status DRAFT) -->
                     @if($transfer->trx_posting === 'F')
                     <div class="form-group col-12">
                         <label for="permintaan_id" class="text-primary"><strong>Otomatisasi dari Permintaan Gudang</strong></label>
@@ -123,13 +128,16 @@
                             <select id="permintaan_id" class="form-control">
                                 <option value="">-- Pilih Nomor Permintaan untuk Mengisi Otomatis --</option>
                                 @foreach($permintaanGudang as $pg)
-                                    <option value="{{ $pg->Pur_Auto }}">{{ $pg->pur_ordernumber }} ({{ $pg->Pur_Date->format('d M Y') }})</option>
+                                    <option value="{{ $pg->Pur_Auto }}" 
+                                            data-from-id="{{ $pg->pur_warehouse }}" 
+                                            data-to-id="{{ $pg->pur_destination }}">
+                                        {{ $pg->pur_ordernumber }} ({{ $pg->Pur_Date->format('d M Y') }})
+                                    </option>
                                 @endforeach
                             </select>
                         </div>
                     </div>
                     <div class="form-group col-12">
-                        {{-- TOMBOL INI SEKARANG AKAN MUNCUL --}}
                         <button type="button" id="btnSyncDetails" class="btn btn-info btn-block" disabled>
                             <i class="fas fa-sync-alt"></i> Gunakan Data & Simpan Detail
                         </button>
@@ -137,18 +145,35 @@
                     @endif
 
 
-                    <!-- Baris 2: Gudang Asal dan Tujuan -->
-                    <div class="col-md-6 mb-3"><label for="Trx_WareCode">Gudang Asal</label><select name="Trx_WareCode" id="Trx_WareCode" class="form-control" {{ $transfer->trx_posting == 'F' ? '' : 'disabled' }}><option value="">-- Pilih Gudang --</option>@foreach ($warehouses as $warehouse)<option value="{{ $warehouse->WARE_Name }}" @if($transfer->Trx_WareCode == $warehouse->WARE_Name) selected @endif>{{ $warehouse->WARE_Name }}</option>@endforeach</select></div>
-                    <div class="col-md-6 mb-3"><label for="Trx_RcvNo">Gudang Tujuan</label><select name="Trx_RcvNo" id="Trx_RcvNo" class="form-control" {{ $transfer->trx_posting == 'F' ? '' : 'disabled' }}><option value="">-- Pilih Gudang --</option>@foreach ($warehouses as $warehouse)<option value="{{ $warehouse->WARE_Name }}" @if($transfer->Trx_RcvNo == $warehouse->WARE_Name) selected @endif>{{ $warehouse->WARE_Name }}</option>@endforeach</select></div>
+                    <div class="col-md-6 mb-3">
+                        <label for="Trx_WareCode">Gudang Asal</label>
+                        <select name="Trx_WareCode" id="Trx_WareCode" class="form-control" {{ $transfer->trx_posting == 'F' ? '' : 'disabled' }}>
+                            <option value="">-- Pilih Gudang --</option>
+                            @foreach ($warehouses as $warehouse)
+                                <option value="{{ $warehouse->WARE_Auto }}" @if($transfer->Trx_WareCode == $warehouse->WARE_Auto) selected @endif>
+                                    {{ $warehouse->WARE_Name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="Trx_RcvNo">Gudang Tujuan</label>
+                        <select name="Trx_RcvNo" id="Trx_RcvNo" class="form-control" {{ $transfer->trx_posting == 'F' ? '' : 'disabled' }}>
+                            <option value="">-- Pilih Gudang --</option>
+                            @foreach ($warehouses as $warehouse)
+                                <option value="{{ $warehouse->WARE_Auto }}" @if($transfer->Trx_RcvNo == $warehouse->WARE_Auto) selected @endif>
+                                    {{ $warehouse->WARE_Name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
 
-                    <!-- Baris 3: Catatan -->
                     <div class="col-12 mb-2"><label for="Trx_Note">Catatan</label><textarea id="Trx_Note" class="form-control" name="Trx_Note" rows="2" {{ $transfer->trx_posting == 'F' ? '' : 'readonly' }}>{{ $transfer->Trx_Note }}</textarea></div>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- TOMBOL AKSI (Hanya muncul saat status DRAFT) -->
     @if($transfer->trx_posting === 'F')
     <div class="mb-3 d-flex">
         <button type="button" class="btn btn-primary mr-2" data-toggle="modal" data-target="#detailModal"><i class="fas fa-plus"></i> Tambah Barang Manual</button>
@@ -157,7 +182,6 @@
     </div>
     @endif
 
-    <!-- TABEL DETAIL BARANG -->
     <div class="card shadow mb-4">
         <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary">Detail Barang</h6></div>
         <div class="card-body">
@@ -182,8 +206,9 @@
                         @forelse($transfer->details as $detail)
                         <tr>
                             <td>{{ $detail->Trx_ProdCode }}</td>
-                            <td>{{ $detail->trx_prodname ?? 'N/A' }}</td>
-                            <td>{{ $detail->trx_uom ?? 'N/A' }}</td>
+                            {{-- (PERBAIKAN) Kode ini sekarang akan berfungsi --}}
+                            <td>{{ $detail->produk->nama_produk ?? 'N/A' }}</td>
+                            <td>{{ $detail->trx_uom ?? $detail->produk->satuan ?? 'N/A' }}</td>
                             <td class="text-end">{{ $detail->Trx_QtyTrx }}</td>
                             <td class="text-end">{{ number_format($detail->trx_cogs ?? 0, 2) }}</td>
                             <td class="text-end">{{ number_format($detail->trx_discount ?? 0, 2) }}</td>
@@ -208,7 +233,6 @@
         </div>
     </div>
 
-    <!-- MODAL UNTUK TAMBAH BARANG MANUAL -->
     @if($transfer->trx_posting === 'F')
     <div class="modal fade" id="detailModal" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-lg" role="document">
@@ -236,7 +260,6 @@
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="modal_trx_uom" class="form-label">Satuan</label>
-                                <!-- Satuan tidak perlu 'detail-calc' karena tidak mengubah angka -->
                                 <select name="trx_uom" id="modal_trx_uom" class="form-control" required>
                                     <option value="" disabled selected>-- Pilih Satuan --</option>
                                     <option value="PCS">PCS</option>
@@ -246,27 +269,22 @@
                                 </div>
                             <div class="col-md-6 mb-3">
                                 <label for="modal_Trx_QtyTrx" class="form-label">Qty</label>
-                                <!-- PASTIKAN ADA kelas 'detail-calc' -->
                                 <input type="number" id="modal_Trx_QtyTrx" name="Trx_QtyTrx" class="form-control detail-calc" step="1" min="1" required>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label for="modal_trx_cogs" class="form-label">Harga</label>
-                                <!-- PASTIKAN ADA kelas 'detail-calc' -->
                                 <input type="number" id="modal_trx_cogs" name="trx_cogs" class="form-control detail-calc" step="0.01" min="0" required>
                             </div>
                                 <div class="col-md-4 mb-3">
                                     <label for="modal_trx_discount">Diskon</label>
-                                    <!-- PASTIKAN ADA kelas 'detail-calc' -->
                                     <input type="number" id="modal_trx_discount" name="trx_discount" class="form-control detail-calc" step="0.01" min="0" value="0">
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label for="modal_trx_taxes">Pajak</label>
-                                    <!-- PASTIKAN ADA kelas 'detail-calc' -->
                                     <input type="number" id="modal_trx_taxes" name="trx_taxes" class="form-control detail-calc" step="0.01" min="0" value="0">
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label for="modal_trx_nettprice">Subtotal (Netto)</label>
-                                    <!-- Ini TIDAK perlu 'detail-calc' karena hanya menampilkan hasil -->
                                     <input type="number" id="modal_trx_nettprice" name="trx_nettprice" class="form-control" readonly style="background-color: #e9ecef;">
                                 </div>
                             </div>
@@ -287,19 +305,18 @@
 
 
 @push('scripts')
-{{-- SweetAlert2 --}}
+{{-- (Kode Javascript Anda dari file yang Anda berikan sudah benar) --}}
 <script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 $(document).ready(function() {
     $('#dataTable').DataTable();
+    
     // =======================================================================
     // SCRIPT UNTUK HALAMAN DAFTAR UTAMA (INDEX)
     // =======================================================================
-    // Event listener dipasang pada elemen statis terdekat (tabel)
     $('#dataTable').on('click', '.delete-draft-btn', function() {
         const transferId = $(this).data('id');
         const baseUrl = '{{ url("/mutasigudang/transfergudang") }}';
-
         Swal.fire({
             title: 'Hapus Draft Ini?',
             text: "Aksi ini akan menghapus draft transfer secara permanen.",
@@ -340,54 +357,47 @@ $(document).ready(function() {
 
     // --- KALKULASI REAL-TIME UNTUK MODAL TAMBAH BARANG MANUAL ---
     function calculateManualNetPrice() {
-    // Ambil nilai dari setiap input menggunakan ID yang sudah distandarkan
-    const qty = parseFloat($('#modal_Trx_QtyTrx').val()) || 0;
-    const cogs = parseFloat($('#modal_trx_cogs').val()) || 0;
-    const discount = parseFloat($('#modal_trx_discount').val()) || 0;
-    const taxes = parseFloat($('#modal_trx_taxes').val()) || 0;
-
-    // Hitung subtotal dengan rumus yang benar
-    const netPrice = (qty * cogs) - discount + taxes;
-
-    // Set nilai dari input subtotal
-    $('#modal_trx_nettprice').val(netPrice.toFixed(2));
+        const qty = parseFloat($('#modal_Trx_QtyTrx').val()) || 0;
+        const cogs = parseFloat($('#modal_trx_cogs').val()) || 0;
+        const discount = parseFloat($('#modal_trx_discount').val()) || 0;
+        const taxes = parseFloat($('#modal_trx_taxes').val()) || 0;
+        const netPrice = (qty * cogs) - discount + taxes;
+        $('#modal_trx_nettprice').val(netPrice.toFixed(2));
     }
-
-    // Pasang event listener ke SEMUA input dengan kelas '.detail-calc'
-    // yang berada di dalam modal. Ini memastikan setiap perubahan akan memicu kalkulasi ulang.
     $('#detailModal').on('keyup change', '.detail-calc', calculateManualNetPrice);
-
-    // Saat modal ditutup, reset form dan kalkulasi
     $('#detailModal').on('hidden.bs.modal', function () {
         $('#detailForm')[0].reset();
-        $('#modal_trx_nettprice').val(''); // Kosongkan subtotal
+        $('#modal_trx_nettprice').val('');
     });
 
 
     // --- FITUR OTOMATISASI DARI PERMINTAAN GUDANG ---
     $('#permintaan_id').on('change', function() {
-        const permintaanId = $(this).val();
+        const selectedOption = $(this).find('option:selected');
+        const permintaanId = selectedOption.val();
         const syncButton = $('#btnSyncDetails');
 
         if (!permintaanId) {
             syncButton.prop('disabled', true);
             return;
         }
+        
+        const fromId = selectedOption.data('from-id');
+        const toId = selectedOption.data('to-id');
+
         syncButton.prop('disabled', false).html('<i class="fas fa-spinner fa-spin"></i> Memuat...');
 
+        $('#Trx_WareCode').val(fromId);
+        $('#Trx_RcvNo').val(toId);
+        
         $.ajax({
             url: `${baseUrl}/fetch-details/${permintaanId}`,
             type: 'GET',
             success: function(response) {
                 if(response.success) {
                     const data = response.data;
-
-                    $('#Trx_WareCode').val(data.pur_warehouse);
-                    $('#Trx_RcvNo').val(data.pur_destination);
-
                     const tableBody = $('#detailTable tbody');
                     tableBody.empty();
-
                     if (data.details.length > 0) {
                         data.details.forEach(function(item) {
                             const row = `<tr>
@@ -408,9 +418,6 @@ $(document).ready(function() {
                         tableBody.html('<tr><td colspan="9" class="text-center">Permintaan ini tidak memiliki detail barang.</td></tr>');
                         syncButton.prop('disabled', true).html('<i class="fas fa-sync-alt"></i> Gunakan Data & Simpan Detail');
                     }
-                } else {
-                    Swal.fire('Error!', response.message, 'error');
-                    syncButton.prop('disabled', true).html('<i class="fas fa-sync-alt"></i> Gunakan Data & Simpan Detail');
                 }
             },
             error: function() {
@@ -452,13 +459,18 @@ $(document).ready(function() {
     if(isDraft) {
         $('#headerForm').on('change', 'input[type=date], textarea, select', function() {
             $.ajax({
-                url: `${baseUrl}/${transferId}`,
+                url: `${baseUrl}/${transferId}/update-header`, 
                 type: 'POST',
                 data: $('#headerForm').serialize() + '&_method=PUT',
                 success: function(response) {
                     if(response.success) { console.log(response.message); }
                 },
-                error: function(xhr) { console.error(xhr.responseJSON?.message); }
+                error: function(xhr) { 
+                    if(xhr.status === 422) {
+                        Swal.fire('Error!', 'Gudang Asal dan Tujuan harus diisi.', 'error');
+                    }
+                    console.error(xhr.responseJSON?.message); 
+                }
             });
         });
     }
@@ -481,40 +493,25 @@ $(document).ready(function() {
     });
 
     $('#detailTable').on('click', '.delete-detail-btn', function() {
-    const detailId = $(this).data('id');
-
-    Swal.fire({
-        title: 'Hapus Barang Ini?',
-        text: "Data tidak bisa dikembalikan!",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        confirmButtonText: 'Ya, hapus!',
-    }).then((result) => {
-        if (result.isConfirmed) {
-            $.ajax({
-                // PERBAIKI BARIS INI: Tambahkan {transferId} di tengah URL
-                url: `${baseUrl}/${transferId}/details/${detailId}`,
-
-                type: 'POST',
-                data: {
-                    _method: 'DELETE',
-                    // Anda tidak perlu mengirim transfer_id di data lagi karena sudah ada di URL
-                    _token: '{{ csrf_token() }}'
-                },
-                success: function(response) {
-                    // Muat ulang halaman untuk melihat perubahan
-                    Swal.fire('Berhasil!', 'Item berhasil dihapus.', 'success').then(() => {
-                        location.reload();
-                    });
-                },
-                error: function(xhr) {
-                    Swal.fire('Error!', xhr.responseJSON?.message || 'Terjadi kesalahan.', 'error');
-                }
-            });
-        }
+        const detailId = $(this).data('id');
+        Swal.fire({
+            title: 'Hapus Barang Ini?', text: "Data tidak bisa dikembalikan!", icon: 'warning',
+            showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, hapus!',
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: `${baseUrl}/${transferId}/details/${detailId}`,
+                    type: 'POST', data: { _method: 'DELETE', _token: '{{ csrf_token() }}' },
+                    success: function(response) {
+                        Swal.fire('Berhasil!', 'Item berhasil dihapus.', 'success').then(() => {
+                            location.reload();
+                        });
+                    },
+                    error: function(xhr) { Swal.fire('Error!', xhr.responseJSON?.message || 'Terjadi kesalahan.', 'error'); }
+                });
+            }
+        });
     });
-});
 
     $('#btnSubmitTransfer').click(function() {
         const hasItems = $('#detailTable tbody tr').not(':has(td[colspan])').length > 0;
@@ -523,8 +520,12 @@ $(document).ready(function() {
             return;
         }
         Swal.fire({
-            title: 'Simpan & Posting Transfer?', text: "Data tidak bisa diubah lagi.", icon: 'question',
-            showCancelButton: true, confirmButtonColor: '#28a745', confirmButtonText: 'Ya, Posting!',
+            title: 'Simpan & Posting Transfer?', 
+            text: "Stok gudang asal akan dikurangi dan barang akan masuk ke 'Dalam Perjalanan'.", 
+            icon: 'question',
+            showCancelButton: true, 
+            confirmButtonColor: '#28a745', 
+            confirmButtonText: 'Ya, Posting!',
         }).then((result) => {
             if (result.isConfirmed) {
                 $.ajax({

@@ -296,6 +296,7 @@ Route::middleware(['auth', 'can.access.menu'])->group(function () {
         Route::delete('transfergudang/{id}/details/{detailId}', [TransferGudangController::class, 'destroyDetail'])->name('transfergudang.destroyDetail');
         Route::get('transfergudang/fetch-details/{permintaanId}', [TransferGudangController::class, 'fetchPermintaanDetails'])->name('transfergudang.fetchDetails');
         Route::post('transfergudang/{id}/sync-details', [TransferGudangController::class, 'syncDetailsFromPermintaan'])->name('transfergudang.syncDetails');
+        Route::get('transfergudang/in-transit', [TransferGudangController::class, 'showInTransit'])->name('transfergudang.inTransit');
         
         //PenerimaanGudang
         Route::get('terimagudang', [TerimaGudangController::class, 'index'])->name('terimagudang.index');

@@ -6,29 +6,27 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\MutasiGudang\Warehouse;
 use App\Models\MutasiGudang\GudangOrder;
+// (Tambahkan use statement ini di atas)
+use App\Models\MutasiGudang\TerimaGudangHeader;
 
 class TransferHeader extends Model
 {
     use HasFactory;
 
-    // Sesuaikan dengan nama tabel header transfer Anda
     protected $table = 'th_slsgt';
-    
-    // Sesuai dengan view Anda (data-id="{{ $transfer->Trx_Auto }}")
     protected $primaryKey = 'Trx_Auto'; 
     public $timestamps = false;
-    public $incrementing = true; // Asumsi Trx_Auto adalah auto-increment
+    public $incrementing = true;
 
-    // Kolom-kolom dari view Anda
     protected $fillable = [
         'trx_number',
         'Trx_Date',
-        'Trx_WareCode',     // Gudang Asal (Nama)
-        'Trx_RcvNo',        // Gudang Tujuan (Nama)
+        'Trx_WareCode',     // Menyimpan ID (WARE_Auto)
+        'Trx_RcvNo',        // Menyimpan ID (WARE_Auto)
         'Trx_Note',
-        'trx_posting',      // 'F' (Draft) atau 'T' (Posted)
-        'Trx_Emp',          // User
-        'ref_pur_auto',     // ID Permintaan (Pur_Auto)
+        'trx_posting',      
+        'user_id',          
+        'ref_pur_auto',     
         'bruto_from_permintaan',
         'diskon_from_permintaan',
         'pajak_from_permintaan',
@@ -42,26 +40,38 @@ class TransferHeader extends Model
     // Relasi ke Detail
     public function details()
     {
-        // Sesuaikan 'id' jika PK detail Anda beda
         return $this->hasMany(TransferDetail::class, 'Trx_Auto', 'Trx_Auto');
     }
     
-    // (PERBAIKAN) Relasi ke Gudang Asal (berdasarkan NAMA)
+    // Relasi ke Gudang Asal (berdasarkan ID)
     public function gudangPengirim()
     {
-        return $this->belongsTo(Warehouse::class, 'Trx_WareCode', 'WARE_Name');
+        return $this->belongsTo(Warehouse::class, 'Trx_WareCode', 'WARE_Auto');
     }
 
-    // (PERBAIKAN) Relasi ke Gudang Tujuan (berdasarkan NAMA)
+    // Relasi ke Gudang Tujuan (berdasarkan ID)
     public function gudangPenerima()
     {
-        return $this->belongsTo(Warehouse::class, 'Trx_RcvNo', 'WARE_Name');
+        return $this->belongsTo(Warehouse::class, 'Trx_RcvNo', 'WARE_Auto');
     }
     
-    // (BARU) Relasi ke Permintaan Gudang (Gudang Order)
+    // Relasi ke Permintaan Gudang
     public function permintaanGudang()
     {
-        // Asumsi 'ref_pur_auto' adalah kolom FK untuk 'Pur_Auto' di 'th_gudangorder'
         return $this->belongsTo(GudangOrder::class, 'ref_pur_auto', 'Pur_Auto');
+    }
+
+    /**
+     * (PERBAIKAN ADA DI SINI)
+     * Relasi ke header penerimaan (untuk cek stok menggantung)
+     * Ini akan memperbaiki error tombol
+     */
+    public function penerimaan()
+    {
+        // Parameter:
+        // 1. Model tujuan: TerimaGudangHeader::class
+        // 2. Foreign Key (di tabel tujuan, th_slsgtrcv): 'ref_trx_auto'
+        // 3. Local Key (di tabel ini, th_slsgt): 'Trx_Auto'
+        return $this->hasOne(TerimaGudangHeader::class, 'ref_trx_auto', 'Trx_Auto');
     }
 }

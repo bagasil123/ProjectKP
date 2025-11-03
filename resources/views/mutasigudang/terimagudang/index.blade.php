@@ -48,7 +48,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {{-- @if(isset($penerimaan) && count($penerimaan) > 0) --}}
+                        {{-- (PERBAIKAN) Gunakan $penerimaanList (dari controller) --}}
                         @forelse ($penerimaanList as $penerimaan)
                             <tr>
                                 <td><strong>{{ $penerimaan->Rcv_number }}</strong></td>
@@ -67,6 +67,7 @@
                                         <a href="{{ route('terimagudang.edit', $penerimaan->id) }}" class="btn btn-sm btn-warning" title="Edit"><i class="fas fa-edit"></i></a>
                                         <button class="btn btn-sm btn-danger delete-draft-btn" data-id="{{ $penerimaan->id }}" title="Hapus Draft"><i class="fas fa-trash"></i></button>
                                     @else
+                                        {{-- (PERBAIKAN) Arahkan ke edit() juga untuk mode 'show' --}}
                                         <a href="{{ route('terimagudang.edit', $penerimaan->id) }}" class="btn btn-sm btn-info" title="Lihat"><i class="fas fa-eye"></i></a>
                                     @endif
                                 </td>
@@ -76,10 +77,10 @@
                                 <td colspan="7" class="text-center">Belum ada data penerimaan gudang.</td>
                             </tr>
                         @endforelse
-                        {{-- @endif --}}
                     </tbody>
                 </table>
             </div>
+            {{-- (PERBAIKAN) Panggil pagination dari $penerimaanList --}}
             @if($penerimaanList->hasPages())
             <div class="d-flex justify-content-center">
                 {{ $penerimaanList->links() }}
@@ -91,12 +92,12 @@
     {{-- ====================================================== --}}
     {{-- KONDISI 2: MENAMPILKAN FORM CREATE / EDIT (FORM VIEW) --}}
     {{-- ====================================================== --}}
+    {{-- (Kode ini Sudah Benar) --}}
     @elseif(isset($penerimaan))
     <div class="d-flex justify-content-end mb-2">
         <a href="{{ route('terimagudang.index') }}" class="btn btn-secondary"><i class="fa fa-arrow-left"></i> Kembali ke Daftar</a>
     </div>
 
-    <!-- FORM HEADER UTAMA -->
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex align-items-center justify-content-between">
             <h6 class="m-0 font-weight-bold text-primary">{{ $penerimaan->rcv_posting !== 'T' ? 'Form Penerimaan Barang' : 'Detail Penerimaan Barang' }}</h6>
@@ -116,7 +117,6 @@
                     <div class="col-md-6 mb-3"><label for="Rcv_number">No. Penerimaan</label><input type="text" id="Rcv_number" class="form-control" value="{{ $penerimaan->Rcv_number ?? 'Otomatis' }}" readonly></div>
                     <div class="col-md-6 mb-3"><label for="Rcv_Date">Tanggal Penerimaan</label><input type="date" id="Rcv_Date" class="form-control" name="Rcv_Date" value="{{ $penerimaan->Rcv_Date ? \Carbon\Carbon::parse($penerimaan->Rcv_Date)->format('Y-m-d') : date('Y-m-d') }}" {{ $penerimaan->rcv_posting == 'T' ? 'readonly' : '' }}></div>
 
-                    <!-- BLOK OTOMATISASI -->
                     @if($penerimaan->rcv_posting !== 'T')
                     <div class="form-group col-12">
                         <label for="transfer_id" class="text-primary"><strong>Ambil Data dari Transfer Gudang</strong></label>
@@ -130,12 +130,13 @@
                     </div>
                     @endif
 
+                    {{-- (PERBAIKAN) Pastikan input ini ada (bisa hidden) jika readonly, agar datanya terkirim --}}
                     <div class="col-md-6 mb-3"><label for="Rcv_From">Gudang Pengirim (Asal)</label><input type="text" id="Rcv_From" name="Rcv_From" class="form-control" value="{{ $penerimaan->Rcv_From }}" readonly style="background-color: #e9ecef;"></div>
                     <div class="col-md-6 mb-3"><label for="Rcv_WareCode">Gudang Penerima (Tujuan)</label><input type="text" id="Rcv_WareCode" name="Rcv_WareCode" class="form-control" value="{{ $penerimaan->Rcv_WareCode }}" readonly style="background-color: #e9ecef;"></div>
+                    
                     <div class="col-12 mb-2"><label for="Rcv_Note">Catatan</label><textarea id="Rcv_Note" class="form-control" name="Rcv_Note" rows="2" {{ $penerimaan->rcv_posting == 'T' ? 'readonly' : '' }}>{{ $penerimaan->Rcv_Note }}</textarea></div>
                 </div>
 
-                <!-- TOMBOL AKSI -->
                 @if($penerimaan->rcv_posting !== 'T')
                 <div class="my-3 d-flex">
                     <button type="submit" name="action" value="save_draft" class="btn btn-primary mr-2"><i class="fas fa-save"></i> Simpan Draft</button>
@@ -146,7 +147,6 @@
                 </div>
                 @endif
 
-                <!-- TABEL DETAIL BARANG -->
                 <div class="card shadow-sm mt-4">
                     <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary">Detail Barang Diterima</h6></div>
                     <div class="card-body">
@@ -168,18 +168,24 @@
                                     @if($penerimaan->details && $penerimaan->details->count() > 0)
                                         @foreach($penerimaan->details as $index => $detail)
                                         <tr>
-                                            <td>{{ $detail->Rcv_ProdCode }}<input type="hidden" name="details[{{$index}}][Rcv_ProdCode]" value="{{ $detail->Rcv_ProdCode }}"><input type="hidden" name="details[{{$index}}][Rcv_prodname]" value="{{ $detail->Rcv_prodname }}"><input type="hidden" name="details[{{$index}}][Rcv_cogs]" class="detail-cogs" value="{{ $detail->Rcv_cogs }}"></td>
-                                            <td>{{ $detail->Rcv_prodname }}<input type="hidden" name="details[{{$index}}][Rcv_ProdCode]" value="{{ $detail->Rcv_ProdCode }}"><input type="hidden" name="details[{{$index}}][Rcv_prodname]" value="{{ $detail->Rcv_prodname }}"><input type="hidden" name="details[{{$index}}][Rcv_cogs]" class="detail-cogs" value="{{ $detail->Rcv_cogs }}"></td>
+                                            {{-- (PERBAIKAN) Gabungkan Kode dan Nama Produk --}}
+                                            <td>{{ $detail->Rcv_ProdCode }}</td>
+                                            <td>{{ $detail->Rcv_prodname }}
+                                                {{-- Input hidden untuk submit form --}}
+                                                <input type="hidden" name="details[{{$index}}][Rcv_ProdCode]" value="{{ $detail->Rcv_ProdCode }}">
+                                                <input type="hidden" name="details[{{$index}}][Rcv_prodname]" value="{{ $detail->Rcv_prodname }}">
+                                                <input type="hidden" name="details[{{$index}}][Rcv_cogs]" class="detail-cogs" value="{{ $detail->Rcv_cogs }}">
+                                            </td>
                                             <td>{{ $detail->Rcv_uom }}<input type="hidden" name="details[{{$index}}][Rcv_uom]" value="{{ $detail->Rcv_uom }}"></td>
                                             <td class="text-end detail-qty-sent-display">{{ $detail->Rcv_Qty_Sent }}<input type="hidden" name="details[{{$index}}][Rcv_Qty_Sent]" value="{{ $detail->Rcv_Qty_Sent }}"></td>
                                             <td><input type="number" name="details[{{$index}}][Rcv_Qty_Received]" class="form-control text-end detail-calc detail-qty-received" value="{{ $detail->Rcv_Qty_Received }}" min="0" max="{{ $detail->Rcv_Qty_Sent }}" {{ $penerimaan->rcv_posting == 'T' ? 'readonly' : '' }}></td>
-                                            <td><input type="number" name="details[{{$index}}][Rcv_Qty_Rejected]" class="form-control text-end detail-calc detail-qty-rejected" value="{{ $detail->Rcv_Qty_Rejected }}" min="0" max="{{ $detail->Rcv_Qty_Sent }}" {{ $penerimaan->rcv_posting == 'T' ? 'readonly' : '' }}></td>
+                                            <td><input type="number" name="details[{{$index}}][Rcv_Qty_Rejected]" class="form-control text-end detail-calc detail-qty-rejected" value="{{ $detail->Rcv_Qty_Rejected ?? 0 }}" min="0" max="{{ $detail->Rcv_Qty_Sent }}" {{ $penerimaan->rcv_posting == 'T' ? 'readonly' : '' }}></td>
                                             <td class="text-end">{{ number_format($detail->Rcv_cogs, 2) }}</td>
                                             <td class="text-end fw-bold detail-subtotal">{{ number_format(($detail->Rcv_Qty_Received * $detail->Rcv_cogs), 2) }}</td>
                                         </tr>
                                         @endforeach
                                     @else
-                                    <tr><td colspan="7" class="text-center">Pilih nomor transfer untuk memuat data barang.</td></tr>
+                                    <tr><td colspan="8" class="text-center">Pilih nomor transfer untuk memuat data barang.</td></tr>
                                     @endif
                                 </tbody>
                             </table>
@@ -195,6 +201,7 @@
 
 
 @push('scripts')
+{{-- (Script JS Anda di file ini sudah benar) --}}
 <script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 $(document).ready(function() {
@@ -225,10 +232,10 @@ $(document).ready(function() {
         const transferId = $(this).val();
         if (!transferId) {
             $('#Rcv_From, #Rcv_WareCode').val('');
-            $('#detailTableBody').html('<tr><td colspan="7" class="text-center">Pilih nomor transfer untuk memuat data barang.</td></tr>');
+            $('#detailTableBody').html('<tr><td colspan="8" class="text-center">Pilih nomor transfer untuk memuat data barang.</td></tr>');
             return;
         }
-        $('#detailTableBody').html('<tr><td colspan="7" class="text-center"><i class="fas fa-spinner fa-spin"></i> Memuat data...</td></tr>');
+        $('#detailTableBody').html('<tr><td colspan="8" class="text-center"><i class="fas fa-spinner fa-spin"></i> Memuat data...</td></tr>');
 
         $.ajax({
             url: `${baseUrl}/get-transfer-details/${transferId}`, type: 'GET',
@@ -242,7 +249,12 @@ $(document).ready(function() {
                         const subtotal = (parseFloat(item.Trx_QtyTrx) * parseFloat(item.trx_cogs)).toFixed(2);
                         const rowHtml = `
                             <tr>
-                                <td>${item.Trx_ProdCode}<br><small>${item.trx_prodname}</small><input type="hidden" name="details[${index}][Rcv_ProdCode]" value="${item.Trx_ProdCode}"><input type="hidden" name="details[${index}][Rcv_prodname]" value="${item.trx_prodname}"><input type="hidden" name="details[${index}][Rcv_cogs]" class="detail-cogs" value="${item.trx_cogs}"></td>
+                                <td>${item.Trx_ProdCode}</td>
+                                <td>${item.trx_prodname}
+                                    <input type="hidden" name="details[${index}][Rcv_ProdCode]" value="${item.Trx_ProdCode}">
+                                    <input type="hidden" name="details[${index}][Rcv_prodname]" value="${item.trx_prodname}">
+                                    <input type="hidden" name="details[${index}][Rcv_cogs]" class="detail-cogs" value="${item.trx_cogs}">
+                                </td>
                                 <td>${item.trx_uom}<input type="hidden" name="details[${index}][Rcv_uom]" value="${item.trx_uom}"></td>
                                 <td class="text-end detail-qty-sent-display">${item.Trx_QtyTrx}<input type="hidden" name="details[${index}][Rcv_Qty_Sent]" value="${item.Trx_QtyTrx}"></td>
                                 <td><input type="number" name="details[${index}][Rcv_Qty_Received]" class="form-control text-end detail-calc detail-qty-received" value="${item.Trx_QtyTrx}" min="0" max="${item.Trx_QtyTrx}"></td>
@@ -253,11 +265,11 @@ $(document).ready(function() {
                         tableBody.append(rowHtml);
                     });
                 } else {
-                    tableBody.html('<tr><td colspan="7" class="text-center">Transfer ini tidak memiliki detail barang.</td></tr>');
+                    tableBody.html('<tr><td colspan="8" class="text-center">Transfer ini tidak memiliki detail barang.</td></tr>');
                 }
             },
             error: function(xhr) {
-                $('#detailTableBody').html('<tr><td colspan="7" class="text-center text-danger">Gagal memuat data.</td></tr>');
+                $('#detailTableBody').html('<tr><td colspan="8" class="text-center text-danger">Gagal memuat data.</td></tr>');
                 Swal.fire('Error!', xhr.responseJSON?.message || 'Gagal menghubungi server.', 'error');
             }
         });
@@ -273,7 +285,12 @@ $(document).ready(function() {
         // Validasi: Diterima + Ditolak tidak boleh > Dikirim
         if (qtyReceived + qtyRejected > qtySent) {
             qtyRejected = qtySent - qtyReceived;
-            if (qtyRejected < 0) qtyRejected = 0;
+            if (qtyRejected < 0) {
+                qtyRejected = 0;
+                // (Opsional) Sesuaikan qtyReceived jika qtyRejected yang memicu
+                qtyReceived = qtySent;
+                row.find('.detail-qty-received').val(qtyReceived);
+            }
             row.find('.detail-qty-rejected').val(qtyRejected);
         }
 

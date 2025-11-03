@@ -5,77 +5,56 @@ namespace App\Http\Controllers\MutasiGudang;
 use App\Http\Controllers\Controller;
 use App\Models\MutasiGudang\TransferHeader;
 use App\Models\MutasiGudang\TransferDetail;
-use App\Models\MutasiGudang\GudangOrder; // Untuk Ambil Permintaan
-use App\Models\MutasiGudang\Warehouse;   // Untuk Ambil Gudang
+use App\Models\MutasiGudang\GudangOrder;
+use App\Models\MutasiGudang\Warehouse;
+use App\Models\Inventory\Dtproduk; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Exception;
+// Hapus 'Str' helper, kita tidak pakai itu lagi
+// use Illuminate\Support\Str; 
 
 class TransferGudangController extends Controller
 {
-    /**
-     * Tampilan Daftar Transfer (List View)
-     * PERBAIKAN: Filter berdasarkan hak akses gudang
-     */
+    
     public function index()
     {
         $user = Auth::user();
         $isSuperAdmin = ($user->role_id == 1);
         $accessibleWarehouses = $user->warehouse_access ?? [];
-
-        // 1. Ambil query dasar
+        
         $query = TransferHeader::with('gudangPengirim', 'gudangPenerima');
 
-        // 2. Jika BUKAN Super Admin, terapkan filter
         if (!$isSuperAdmin) {
-            // (PERBAIKAN) Ambil NAMA gudang yang bisa diakses
-            $accessibleWarehouseNames = Warehouse::whereIn('WARE_Auto', $accessibleWarehouses)
-                                                 ->pluck('WARE_Name')->toArray();
-            
-            // Filter data tabel: user harus bisa akses Gudang Asal (Trx_WareCode)
-            // ATAU Gudang Tujuan (Trx_RcvNo) (berdasarkan NAMA)
-            $query->where(function ($q) use ($accessibleWarehouseNames) {
-                $q->whereIn('Trx_WareCode', $accessibleWarehouseNames)
-                  ->orWhereIn('Trx_RcvNo', $accessibleWarehouseNames);
+            $query->where(function ($q) use ($accessibleWarehouses) {
+                $q->whereIn('Trx_WareCode', $accessibleWarehouses)
+                  ->orWhereIn('Trx_RcvNo', $accessibleWarehouses);
             });
         }
-        
-        // 3. Selesaikan query (sesuai view Anda)
         $transfers = $query->orderBy('Trx_Auto', 'desc')->paginate(15); 
-
         return view('mutasigudang.transfergudang.index', compact('transfers'));
     }
 
-    /**
-     * Tampilan Form 'Buat Baru'
-     * PERBAIKAN: Buat draft baru dan redirect ke halaman edit
-     */
     public function create()
     {
         $user = Auth::user();
         DB::beginTransaction();
         try {
             $transactionDate = now();
-            // (Menggunakan fungsi generateTrxNumber Anda yang sudah diperbaiki)
             $newTrxNumber = $this->generateTrxNumber($transactionDate);
-
-            // (PERBAIKAN) Mengisi semua kolom yang dibutuhkan
             $transfer = TransferHeader::create([
                 'trx_number'  => $newTrxNumber,
                 'Trx_Date'    => $transactionDate,
-                'trx_posting' => 'F', // Status Draft
-                'Trx_Emp'     => $user->name, // (Asumsi dari view Anda)
-                'Trx_WareCode' => null, // Wajib diisi NANTI di form edit
-                'Trx_RcvNo'    => null, // Wajib diisi NANTI di form edit
+                'trx_posting' => 'F', 
+                'user_id'     => Auth::id(), 
+                'Trx_WareCode' => null, 
+                'Trx_RcvNo'    => null,
             ]);
-
             DB::commit();
-            // Redirect ke halaman edit (sesuai route Anda)
             return redirect()->route('transfergudang.edit', $transfer->Trx_Auto);
-
         } catch (Exception $e) {
             DB::rollBack();
             Log::error('Gagal membuat draft Transfer: ' . $e->getMessage());
@@ -83,65 +62,52 @@ class TransferGudangController extends Controller
         }
     }
 
-    /**
-     * Tampilan Form 'Edit'
-     * PERBAIKAN: Kirim data $warehouses dan $permintaanGudang yang sudah difilter
-     */
     public function edit($id)
     {
         $user = Auth::user();
         $isSuperAdmin = ($user->role_id == 1);
         $accessibleWarehouses = $user->warehouse_access ?? [];
 
-        // 1. Ambil data Transfer
-        $transfer = TransferHeader::with('details')->findOrFail($id);
+        // (PERBAIKAN) Muat relasi 'details.produk'
+        // Ini akan memperbaiki data 'N/A' di view
+        $transfer = TransferHeader::with('details.produk')->findOrFail($id);
         
-        // 2. Ambil daftar GUDANG (untuk dropdown) berdasarkan hak akses
         if ($isSuperAdmin) {
             $warehouses = Warehouse::all();
         } else {
             $warehouses = Warehouse::whereIn('WARE_Auto', $accessibleWarehouses)->get();
         }
 
-        // 3. Ambil daftar PERMINTAAN (Gudang Order) yang sudah di-submit
-        $permintaanQuery = GudangOrder::where('pur_status', 'submitted'); // 'pur_status' dari GudangOrder
+        $permintaanQuery = GudangOrder::with('gudangPengirim', 'gudangPenerima')
+                                      ->where('pur_status', 'submitted'); 
 
         if (!$isSuperAdmin) {
-            // Filter permintaan: user harus bisa akses Gudang Pengirim ATAU Penerima
             $permintaanQuery->where(function ($q) use ($accessibleWarehouses) {
-                // Kolom di th_gudangorder adalah ID
-                $q->whereIn('from_warehouse_id', $accessibleWarehouses) 
-                  ->orWhereIn('to_warehouse_id', $accessibleWarehouses);
+                $q->whereIn('pur_warehouse', $accessibleWarehouses) 
+                  ->orWhereIn('pur_destination', $accessibleWarehouses);
             });
         }
         $permintaanGudang = $permintaanQuery->orderBy('Pur_Auto', 'desc')->get();
         
-        // 4. Kirim semua data ke view
         return view('mutasigudang.transfergudang.index', compact('transfer', 'warehouses', 'permintaanGudang'));
     }
     
-    // (Fungsi show tidak ada di route Anda, digabung di edit)
     public function show($id)
     {
-        return $this->edit($id); // Panggil fungsi edit
+        return $this->edit($id); 
     }
 
-    /**
-     * (AJAX) Update Header
-     * PERBAIKAN: Validasi berdasarkan NAMA gudang
-     */
     public function updateHeader(Request $request, $id)
     {
         $transfer = TransferHeader::findOrFail($id);
         if ($transfer->trx_posting !== 'F') {
             return response()->json(['success' => false, 'message' => 'Hanya draft yang bisa diubah.'], 403);
         }
-
-        // Validasi nama form dari view Anda
+        
         $validatedData = $request->validate([
             'Trx_Date'      => 'required|date',
-            'Trx_WareCode'  => 'required|string|exists:m_warehouse,WARE_Name', // Validasi by NAMA
-            'Trx_RcvNo'     => 'required|string|exists:m_warehouse,WARE_Name', // Validasi by NAMA
+            'Trx_WareCode'  => 'required|integer|exists:m_warehouse,WARE_Auto', // Validasi ID
+            'Trx_RcvNo'     => 'required|integer|exists:m_warehouse,WARE_Auto', // Validasi ID
             'Trx_Note'      => 'nullable|string',
         ]);
         
@@ -149,11 +115,9 @@ class TransferGudangController extends Controller
         return response()->json(['success' => true, 'message' => 'Header berhasil diperbarui.']);
     }
 
-    /**
-     * (AJAX) Simpan Detail Barang Manual
-     */
     public function storeDetail(Request $request)
     {
+        // (Logika fungsi ini sudah benar)
         $validated = $request->validate([
             'Trx_Auto' => 'required|exists:th_slsgt,Trx_Auto',
             'Trx_ProdCode' => 'required|string|max:50',
@@ -163,41 +127,33 @@ class TransferGudangController extends Controller
             'trx_cogs' => 'required|numeric|min:0',
             'trx_discount' => 'nullable|numeric|min:0',
             'trx_taxes' => 'nullable|numeric|min:0',
-            'trx_nettprice' => 'required|numeric', // Ambil dari kalkulasi JS
+            'trx_nettprice' => 'required|numeric', 
         ]);
-
         $transferHeader = TransferHeader::find($validated['Trx_Auto']);
         if (!$transferHeader || $transferHeader->trx_posting !== 'F') {
             return response()->json(['message' => 'Header transfer tidak ditemukan atau sudah diposting.'], 404);
         }
-        
-        $validated['trx_number'] = $transferHeader->trx_number; // Tambahkan trx_number
+        $validated['trx_number'] = $transferHeader->trx_number; 
         $detail = TransferDetail::create($validated);
-        
-        $this->recalculateTransferTotal($transferHeader->Trx_Auto); // Hitung ulang total
-
+        $this->recalculateTransferTotal($transferHeader->Trx_Auto); 
         return response()->json(['success' => true, 'message' => 'Barang berhasil disimpan.', 'data' => $detail]);
     }
 
-    /**
-     * (AJAX) Hapus Detail Barang
-     */
-    public function destroyDetail($id, $detailId) // ID Header, ID Detail
+    public function destroyDetail($id, $detailId)
     {
+        // (Logika fungsi ini sudah benar)
         $detail = TransferDetail::findOrFail($detailId);
         if ($detail->Trx_Auto != $id) {
             return response()->json(['success' => false, 'message' => 'Detail tidak sesuai.'], 403);
         }
         $detail->delete();
-        $this->recalculateTransferTotal($id); // Hitung ulang total
+        $this->recalculateTransferTotal($id); 
         return response()->json(['success' => true, 'message' => 'Barang berhasil dihapus.']);
     }
 
-    /**
-     * (AJAX) Hapus Draft Header
-     */
     public function destroy($id)
     {
+        // (Logika fungsi ini sudah benar)
         $transfer = TransferHeader::findOrFail($id);
         if ($transfer->trx_posting !== 'F') {
             return response()->json(['success' => false, 'message' => 'Hanya draft yang bisa dihapus.'], 403);
@@ -214,9 +170,10 @@ class TransferGudangController extends Controller
         }
     }
 
-    /**
-     * (AJAX) Submit / Posting Transfer
-     */
+    // =========================================================================
+    // == (LOGIKA BARU SESUAI PERMINTAAN "STOK MENGGANTUNG") ==
+    // =========================================================================
+    
     public function submit($id)
     {
         $transfer = TransferHeader::with('details')->findOrFail($id);
@@ -226,103 +183,91 @@ class TransferGudangController extends Controller
         
         DB::beginTransaction();
         try {
-            // Ambil gudang asal & tujuan berdasarkan NAMA (sesuai penyimpanan di header)
-            $sourceWarehouse = Warehouse::where('WARE_Name', $transfer->Trx_WareCode)->first();
-            $destWarehouse   = Warehouse::where('WARE_Name', $transfer->Trx_RcvNo)->first();
-
-            if (!$sourceWarehouse || !$destWarehouse) {
-            throw new Exception('Gudang asal atau tujuan tidak ditemukan.');
+            $sourceWarehouseId = $transfer->Trx_WareCode;
+            if (!$sourceWarehouseId) {
+                throw new Exception('Gudang asal tidak boleh kosong.');
             }
-
-            // Nama tabel/kolom stok -- sesuaikan dengan skema DB Anda
-            $stockTable = 'm_stock';        // <-- ubah jika tabel stok berbeda
-            $prodCol    = 'Prod_Code';     // <-- ubah jika kolom kode produk berbeda
-            $wareCol    = 'WARE_Auto';     // <-- ubah jika kolom id gudang berbeda
-            $qtyCol     = 'Stock_Qty';     // <-- ubah jika kolom kuantitas berbeda
+            if (!$transfer->Trx_RcvNo) {
+                throw new Exception('Gudang tujuan tidak boleh kosong.');
+            }
 
             foreach ($transfer->details as $detail) {
-            $prodCode = $detail->Trx_ProdCode;
-            $qty      = $detail->Trx_QtyTrx;
+                $prodCode = $detail->Trx_ProdCode;
+                $qty      = $detail->Trx_QtyTrx;
 
-            // Lock baris stok asal untuk konsistensi
-            $sourceStock = DB::table($stockTable)
-                ->where($wareCol, $sourceWarehouse->WARE_Auto)
-                ->where($prodCol, $prodCode)
-                ->lockForUpdate()
-                ->first();
+                $stock = Dtproduk::where('kode_produk', $prodCode)
+                                   ->where('WARE_Auto', $sourceWarehouseId)
+                                   ->lockForUpdate()
+                                   ->first();
 
-            $sourceQty = $sourceStock->{$qtyCol} ?? 0;
-            if ($sourceQty < $qty) {
-                throw new Exception("Stok tidak cukup untuk produk {$prodCode} di gudang {$sourceWarehouse->WARE_Name} (tersedia: {$sourceQty}, dibutuhkan: {$qty}).");
+                if (!$stock) {
+                    throw new Exception("Produk {$prodCode} tidak ditemukan di gudang (ID: {$sourceWarehouseId}).");
+                }
+                
+                if ($stock->stok < $qty) {
+                    $gudang = $transfer->gudangPengirim->WARE_Name ?? "ID: {$sourceWarehouseId}";
+                    throw new Exception("Stok tidak cukup untuk produk {$prodCode} di {$gudang} (tersedia: {$stock->stok}, dibutuhkan: {$qty}).");
+                }
+
+                $stock->stok -= $qty;
+                $stock->save(); 
             }
 
-            // Kurangi stok di gudang asal
-            DB::table($stockTable)
-                ->where($wareCol, $sourceWarehouse->WARE_Auto)
-                ->where($prodCol, $prodCode)
-                ->update([$qtyCol => DB::raw("$qtyCol - {$qty}")]);
-
-            // Lock & update/insert stok di gudang tujuan
-            $destStock = DB::table($stockTable)
-                ->where($wareCol, $destWarehouse->WARE_Auto)
-                ->where($prodCol, $prodCode)
-                ->lockForUpdate()
-                ->first();
-
-            if ($destStock) {
-                DB::table($stockTable)
-                ->where($wareCol, $destWarehouse->WARE_Auto)
-                ->where($prodCol, $prodCode)
-                ->update([$qtyCol => DB::raw("$qtyCol + {$qty}")]);
-            } else {
-                DB::table($stockTable)->insert([
-                $wareCol => $destWarehouse->WARE_Auto,
-                $prodCol => $prodCode,
-                $qtyCol  => $qty,
-                'created_at' => now(),
-                'updated_at' => now(),
-                ]);
-            }
-            }
-
+            $transfer->update(['trx_posting' => 'T']); 
             DB::commit();
+            $message = 'Transfer berhasil di-posting. Stok di gudang asal telah dikurangi dan barang sekarang dalam perjalanan (menggantung).';
+            return response()->json(['success' => true, 'message' => $message]);
+
         } catch (Exception $e) {
             DB::rollBack();
             Log::error('Gagal update stok saat posting transfer: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Gagal update stok: ' . $e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => 'Gagal posting: ' . $e->getMessage()], 500);
         }
-        $transfer->update(['trx_posting' => 'T']); // 'T' = True (Posted)
-        return response()->json(['success' => true, 'message' => 'Transfer berhasil di-posting.']);
     }
 
-    /**
-     * (AJAX) Ambil detail dari Permintaan Gudang (Gudang Order)
-     */
+    
+    // =========================================================================
+    // == (FUNGSI BARU UNTUK TOMBOL "BARANG DALAM PERJALANAN") ==
+    // =========================================================================
+    
+    public function showInTransit()
+    {
+        // 1. Ambil semua transfer yang sudah di-posting (T)
+        // 2. TAPI belum memiliki relasi 'penerimaan' (artinya belum diterima)
+        $inTransitTransfers = TransferHeader::with('details.produk', 'gudangPengirim', 'gudangPenerima')
+            ->where('trx_posting', 'T')
+            ->whereDoesntHave('penerimaan')
+            ->orderBy('Trx_Date', 'desc')
+            ->get();
+            
+        // 3. Kirim data ke view baru
+        return view('mutasigudang.transfergudang.in_transit', compact('inTransitTransfers'));
+    }
+    
+    
+    // =========================================================================
+    // == (FUNGSI SISANYA SUDAH BENAR) ==
+    // =========================================================================
+
     public function fetchPermintaanDetails($permintaanId)
     {
         try {
-            // (PERBAIKAN) Kita perlu relasi gudangPengirim/Penerima untuk mengambil NAMA
-            $permintaan = GudangOrder::with('details', 'gudangPengirim', 'gudangPenerima')->findOrFail($permintaanId); 
-            
-            // Data yang dikirim kembali ke JavaScript
+            $permintaan = GudangOrder::with('details')->findOrFail($permintaanId); 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    // (PERBAIKAN) Kirim NAMA gudang, bukan ID
-                    'pur_warehouse' => $permintaan->gudangPengirim->WARE_Name ?? null, 
-                    'pur_destination' => $permintaan->gudangPenerima->WARE_Name ?? null,
-                    
+                    'pur_warehouse_id' => $permintaan->pur_warehouse, 
+                    'pur_destination_id' => $permintaan->pur_destination,
                     'details' => $permintaan->details->map(function ($detail) {
-                        // "Menerjemahkan" nama kolom dari td_gudangorderdetail ke td_slsgt
                         return [
-                            'Pur_ProdCode' => $detail->kode_produk, // dari td_gudangorderdetail
-                            'pur_prodname' => $detail->nama_produk, // dari td_gudangorderdetail
-                            'Pur_UOM' => $detail->uom,
-                            'Pur_Qty' => $detail->qty,
-                            'Pur_GrossPrice' => $detail->price,
-                            'Pur_Discount' => $detail->discount,
-                            'Pur_Taxes' => $detail->taxes,
-                            'Pur_NettPrice' => $detail->subtotal,
+                            'Pur_ProdCode' => $detail->Pur_ProdCode, 
+                            'pur_prodname' => $detail->pur_prodname, 
+                            'Pur_UOM'      => $detail->Pur_UOM,      
+                            'Pur_Qty'      => $detail->Pur_Qty,      
+                            'Pur_GrossPrice' => $detail->Pur_GrossPrice, 
+                            'Pur_Discount' => $detail->Pur_Discount, 
+                            'Pur_Taxes'    => $detail->Pur_Taxes,    
+                            'Pur_NettPrice' => $detail->Pur_NettPrice, 
                         ];
                     })
                 ]
@@ -332,14 +277,11 @@ class TransferGudangController extends Controller
         }
     }
 
-    /**
-     * (AJAX) Simpan (Sync) detail dari Permintaan ke Transfer
-     */
     public function syncDetailsFromPermintaan(Request $request, $id)
     {
         $request->validate(['permintaan_id' => 'required|exists:th_gudangorder,Pur_Auto']);
         $transfer = TransferHeader::findOrFail($id);
-        $permintaan = GudangOrder::with('details', 'gudangPengirim', 'gudangPenerima')->find($request->permintaan_id);
+        $permintaan = GudangOrder::with('details')->find($request->permintaan_id);
 
         if ($transfer->trx_posting !== 'F') {
             return response()->json(['success' => false, 'message' => 'Hanya draft yang bisa diubah.'], 403);
@@ -347,51 +289,40 @@ class TransferGudangController extends Controller
         
         DB::beginTransaction();
         try {
-            // 1. Hapus detail lama
             $transfer->details()->delete();
-
-            // 2. Update header transfer (Gudang Asal & Tujuan)
             $transfer->update([
-                // (PERBAIKAN) Ambil NAMA gudang dari relasi permintaan
-                'Trx_WareCode' => $permintaan->gudangPengirim->WARE_Name ?? null,
-                'Trx_RcvNo' => $permintaan->gudangPenerima->WARE_Name ?? null,
-                'Trx_Note' => 'Transfer berdasarkan Permintaan No: ' . $permintaan->pur_ordernumber,
-                'ref_pur_auto' => $permintaan->Pur_Auto, // Simpan ID Permintaan
+                'Trx_WareCode' => $permintaan->pur_warehouse,
+                'Trx_RcvNo'    => $permintaan->pur_destination,
+                'Trx_Note'     => 'Transfer berdasarkan Permintaan No: ' . $permintaan->pur_ordernumber,
+                'ref_pur_auto' => $permintaan->Pur_Auto, 
             ]);
-
-            // 3. Masukkan detail baru dari permintaan
             $totalBruto = 0; $totalDiscount = 0; $totalTaxes = 0; $totalNetto = 0;
-            
             foreach ($permintaan->details as $detail) {
                 TransferDetail::create([
                     'Trx_Auto' => $transfer->Trx_Auto,
                     'trx_number' => $transfer->trx_number,
-                    'Trx_ProdCode' => $detail->kode_produk, // dari td_gudangorderdetail
-                    'trx_prodname' => $detail->nama_produk, // dari td_gudangorderdetail
-                    'trx_uom' => $detail->uom,
-                    'Trx_QtyTrx' => $detail->qty,
-                    'trx_cogs' => $detail->price, // Harga
-                    'trx_discount' => $detail->discount,
-                    'trx_taxes' => $detail->taxes,
-                    'trx_nettprice' => $detail->subtotal, // Subtotal
+                    'Trx_ProdCode' => $detail->Pur_ProdCode, 
+                    'trx_prodname' => $detail->pur_prodname, 
+                    'trx_uom'      => $detail->Pur_UOM,      
+                    'Trx_QtyTrx'   => $detail->Pur_Qty,      
+                    'trx_cogs'     => $detail->Pur_GrossPrice, 
+                    'trx_discount' => $detail->Pur_Discount, 
+                    'trx_taxes'    => $detail->Pur_Taxes,    
+                    'trx_nettprice' => $detail->Pur_NettPrice, 
                 ]);
-                $totalBruto += ($detail->qty * $detail->price);
-                $totalDiscount += $detail->discount;
-                $totalTaxes += $detail->taxes;
-                $totalNetto += $detail->subtotal;
+                $totalBruto += ($detail->Pur_Qty * $detail->Pur_GrossPrice); 
+                $totalDiscount += $detail->Pur_Discount; 
+                $totalTaxes += $detail->Pur_Taxes;       
+                $totalNetto += $detail->Pur_NettPrice;  
             }
-            
-            // 4. Update total di header transfer
             $transfer->update([
                 'bruto_from_permintaan' => $totalBruto,
                 'diskon_from_permintaan' => $totalDiscount,
                 'pajak_from_permintaan' => $totalTaxes,
                 'netto_from_permintaan' => $totalNetto,
             ]);
-
             DB::commit();
             return response()->json(['success' => true, 'message' => 'Data berhasil disinkronkan dari permintaan.']);
-
         } catch (Exception $e) {
             DB::rollBack();
             Log::error('Gagal sync detail transfer: ' . $e->getMessage());
@@ -399,18 +330,15 @@ class TransferGudangController extends Controller
         }
     }
     
-    // Helper untuk hitung ulang total (saat tambah/hapus manual)
     protected function recalculateTransferTotal($transferId)
     {
         $transfer = TransferHeader::with('details')->findOrFail($transferId);
-        
         $totalBruto = $transfer->details->sum(function($detail) {
             return $detail->Trx_QtyTrx * $detail->trx_cogs;
         });
         $totalDiscount = $transfer->details->sum('trx_discount');
         $totalTaxes = $transfer->details->sum('trx_taxes');
         $totalNetto = $transfer->details->sum('trx_nettprice');
-
         $transfer->update([
             'bruto_from_permintaan' => $totalBruto,
             'diskon_from_permintaan' => $totalDiscount,
@@ -419,16 +347,13 @@ class TransferGudangController extends Controller
         ]);
     }
     
-    // Helper untuk nomor transaksi
     private function generateTrxNumber(Carbon $transactionDate)
     {
-        $prefix = 'GT-'; // Gudang Transfer
-        $date = $transactionDate->format('dmy'); // Format dmy
-        
+        $prefix = 'GT-'; 
+        $date = $transactionDate->format('dmy'); 
         $lastTrx = TransferHeader::where('trx_number', 'like', $prefix . $date . '%')
-                                 ->latest('Trx_Auto') // Urutkan berdasarkan PK
+                                 ->latest('Trx_Auto') 
                                  ->first();
-
         if (!$lastTrx) {
             return $prefix . $date . '001';
         }

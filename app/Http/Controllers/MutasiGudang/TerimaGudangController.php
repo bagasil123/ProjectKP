@@ -6,131 +6,122 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\MutasiGudang\TerimaGudangHeader;
 use App\Models\MutasiGudang\TerimaGudangDetail;
-use App\Models\MutasiGudang\TransferHeader;;   // Untuk mengambil data user
-use App\Models\MutasiGudang\Warehouse; // Pastikan nama model ini benar
+use App\Models\MutasiGudang\TransferHeader;
+use App\Models\MutasiGudang\Warehouse; 
+use App\Models\Inventory\Dtproduk; // <-- TAMBAHKAN INI UNTUK UPDATE STOK
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log; // <-- TAMBAHKAN INI
+use Exception; // <-- TAMBAHKAN INI
 
 class TerimaGudangController extends Controller
 {
-    /**
-     * Menampilkan halaman daftar penerimaan.
-     */
+    
     public function index()
     {
         $user = Auth::user();
-        $isSuperAdmin = ($user->role_id == 1); // Cek Super Admin
-        $accessibleWarehouses = $user->warehouse_access ?? []; // Ambil hak akses
+        $isSuperAdmin = ($user->role_id == 1); 
+        $accessibleWarehouses = $user->warehouse_access ?? []; 
 
-        // Ambil query dasar untuk Terima Gudang (th_slsgtrcv)
-        $query = \App\Models\MutasiGudang\TerimaGudangHeader::with('gudangPengirim', 'gudangPenerima');
+        $query = \App\Models\MutasiGudang\TerimaGudangHeader::with('transferHeader');
 
-        // Jika BUKAN Super Admin, terapkan filter
         if (!$isSuperAdmin) {
-            // User harus bisa akses Gudang Pengirim (WH_Send)
-            // ATAU Gudang Penerima (WH_Rcv)
-            $query->where(function ($q) use ($accessibleWarehouses) {
-                $q->whereIn('WH_Send', $accessibleWarehouses)
-                  ->orWhereIn('WH_Rcv', $accessibleWarehouses);
-            });
+            // (PERBAIKAN) Filter berdasarkan ID Gudang
+            // Ambil ID gudang yang bisa diakses dari transferHeader (Trx_RcvNo)
+            // atau dari terimaHeader (ref_trx_auto -> transferHeader.Trx_RcvNo)
+            
+            // Kita perlu mengambil ID gudang yang bisa diakses user
+            // $accessibleWarehouseIds = $accessibleWarehouses; // Ini sudah ID
+
+            // Ambil ID Transfer yang tujuannya bisa diakses user
+            $accessibleTransferIds = TransferHeader::whereIn('Trx_RcvNo', $accessibleWarehouses)
+                                                    ->pluck('Trx_Auto');
+
+            $query->whereIn('ref_trx_auto', $accessibleTransferIds);
         }
         
-        $terimas = $query->orderBy('Pur_Auto', 'desc')->get();
-        
-        // Ambil semua gudang untuk dropdown filter di halaman (jika ada)
+        $penerimaanList = $query->orderBy('id', 'desc')->paginate(15);
         $warehouses = Warehouse::all(); 
 
-        return view('mutasigudang.terimagudang.index', compact('terimas', 'warehouses'));
+        return view('mutasigudang.terimagudang.index', compact('penerimaanList', 'warehouses'));
     }
 
-    /**
-     * Menampilkan halaman form untuk membuat penerimaan baru.
-     */
+    
     public function create()
     {
-        // Ambil daftar transfer yang bisa dipilih
-        // Pastikan nama kolom 'trx_posting' dan valuenya 'T' sesuai dengan tabel transfer Anda
-        $postedTransfers = TransferHeader::where('trx_posting', 'T')
-            ->whereDoesntHave('penerimaan') // Opsi: Hanya tampilkan transfer yang belum pernah dibuatkan penerimaannya
-            ->get();
+        $user = Auth::user();
+        $isSuperAdmin = ($user->role_id == 1);
+        $accessibleWarehouses = $user->warehouse_access ?? [];
 
-        // PERBAIKAN: Buat objek kosong agar view bisa merender form create
+        // Ambil daftar transfer yang bisa dipilih
+        $transferQuery = TransferHeader::where('trx_posting', 'T')
+            ->whereDoesntHave('penerimaan'); // Hanya yg belum diterima
+            
+        if (!$isSuperAdmin) {
+            // User hanya bisa melihat transfer yg TUJUANNYA (Trx_RcvNo) adalah gudang mereka
+             $transferQuery->whereIn('Trx_RcvNo', $accessibleWarehouses);
+        }
+
+        $postedTransfers = $transferQuery->get();
         $penerimaan = new TerimaGudangHeader();
 
-        // PERBAIKAN: Mengirim ke view 'index' yang sama, bukan 'create'
         return view('mutasigudang.terimagudang.index', compact('penerimaan', 'postedTransfers'));
     }
 
-    /**
-     * Menampilkan form untuk mengedit penerimaan yang sudah ada.
-     */
+    
     public function edit($id)
     {
-        // Cari data penerimaan yang akan diedit, beserta detailnya
         $penerimaan = TerimaGudangHeader::with('details')->findOrFail($id);
 
-        // Ambil daftar transfer (diperlukan untuk menampilkan nomor ref di dropdown, meskipun disabled)
-        // Pastikan nama kolom 'trx_posting' dan valuenya 'T' sesuai dengan tabel transfer Anda
-        $postedTransfers = TransferHeader::where('trx_posting', 'T')->get();
+        // Ambil SEMUA transfer posted, untuk
+        // memastikan transfer yg dipilih sebelumnya tetap tampil di dropdown
+         $postedTransfers = TransferHeader::where('trx_posting', 'T')->get();
 
         return view('mutasigudang.terimagudang.index', compact('penerimaan', 'postedTransfers'));
     }
 
-    /**
-     * Menyimpan data penerimaan baru dari form.
-     */
+    
     public function store(Request $request)
     {
-        // (Validasi Anda sudah cukup baik, kita gunakan itu)
         $request->validate([
             'Rcv_Date' => 'required|date',
-            'ref_trx_auto' => 'required|numeric',
+            'ref_trx_auto' => 'required|numeric|exists:th_slsgt,Trx_Auto',
             'details' => 'required|array|min:1',
         ]);
 
         DB::beginTransaction();
         try {
-            // =====================================================================
-            // == LOGIKA PEMBUATAN NOMOR PENERIMAAN BARU ==
-            // =====================================================================
-
-            // 1. Ambil tanggal transaksi dari request form.
+            // ... (Logika generate Rcv_number Anda sudah benar) ...
             $transactionDate = new \DateTime($request->Rcv_Date);
-
-            // 2. Cari penerimaan terakhir yang dibuat pada tanggal yang sama.
             $lastPenerimaanToday = TerimaGudangHeader::whereDate('Rcv_Date', $transactionDate->format('Y-m-d'))
-                                                    ->latest('id') // Urutkan berdasarkan ID terbaru
+                                                    ->latest('id')
                                                     ->first();
-
-            $nextSequence = 1; // 3. Set nomor urut default ke 1.
-
-            // 4. Jika ada penerimaan di hari ini, hitung nomor urut berikutnya.
+            $nextSequence = 1; 
             if ($lastPenerimaanToday) {
-                // Ambil 3 digit terakhir dari nomor sebelumnya (misal: '005')
                 $lastSequence = (int) substr($lastPenerimaanToday->Rcv_number, -3);
                 $nextSequence = $lastSequence + 1;
             }
-
-            // 5. Format tanggal (DDMMYY) dan nomor urut (001, 015, 123).
             $datePart = $transactionDate->format('dmy');
             $sequencePart = str_pad($nextSequence, 3, '0', STR_PAD_LEFT);
-
-            // 6. Gabungkan semua bagian menjadi nomor penerimaan yang final.
             $newRcvNumber = 'RCV-' . $datePart . $sequencePart;
-            // =====================================================================
-            // == AKHIR LOGIKA PEMBUATAN NOMOR ==
-            // =====================================================================
+            // ... (Akhir logika Rcv_number) ...
+
             $isPosting = $request->input('action') === 'save_post';
+
+            // Ambil data transfer untuk dapat ID gudang tujuan
+            $transfer = TransferHeader::findOrFail($request->ref_trx_auto);
+            $destinationWarehouseId = $transfer->Trx_RcvNo;
 
             $header = TerimaGudangHeader::create([
                 'Rcv_number' => $newRcvNumber,
                 'ref_trx_auto' => $request->ref_trx_auto,
-                'user_id' => Auth::id(),
+                'Rcv_UserID' => Auth::id(), 
                 'Rcv_Date' => $request->Rcv_Date,
-                'Rcv_WareCode' => $request->Rcv_WareCode,
-                'Rcv_From' => $request->Rcv_From,
+                // (PERBAIKAN) Simpan NAMA gudang, sesuai model TerimaGudang
+                'Rcv_WareCode' => $transfer->gudangPenerima->WARE_Name ?? null, 
+                'Rcv_From'     => $transfer->gudangPengirim->WARE_Name ?? null,
                 'Rcv_Note' => $request->Rcv_Note,
-                'rcv_posting' => $isPosting ? 'T' : 'F', // Status 'T' jika posting, 'F' jika draft
+                'rcv_posting' => $isPosting ? 'T' : 'F', 
             ]);
 
             // Simpan detail
@@ -146,31 +137,51 @@ class TerimaGudangController extends Controller
                     'Rcv_cogs' => $item['Rcv_cogs'],
                     'Rcv_subtotal' => ($item['Rcv_Qty_Received'] * $item['Rcv_cogs']),
                 ]);
+
+                // (LOGIKA BARU) Jika di-posting, tambahkan stok ke gudang tujuan
+                if ($isPosting && $item['Rcv_Qty_Received'] > 0) {
+                    $this->addStockToWarehouse(
+                        $item['Rcv_ProdCode'],
+                        $destinationWarehouseId,
+                        $item['Rcv_Qty_Received']
+                    );
+                }
             }
 
             DB::commit();
-            return redirect()->route('terimagudang.index')->with('success', 'Penerimaan barang berhasil disimpan.');
+            $message = $isPosting ? 'Penerimaan berhasil diposting dan stok telah diperbarui.' : 'Draft penerimaan berhasil disimpan.';
+            return redirect()->route('terimagudang.index')->with('success', $message);
 
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Gagal simpan penerimaan: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage())->withInput();
         }
     }
 
-    /**
-     * Memperbarui penerimaan yang ada (khusus draft).
-     */
+    
     public function update(Request $request, $id)
     {
-        $header = TerimaGudangHeader::findOrFail($id);
+        $header = TerimaGudangHeader::with('transferHeader')->findOrFail($id);
 
         if ($header->rcv_posting === 'T') {
             return redirect()->back()->with('error', 'Penerimaan sudah di-posting dan tidak bisa diubah.');
         }
+        
+        $request->validate([
+            'Rcv_Date' => 'required|date',
+            'details' => 'required|array|min:1',
+        ]);
 
         DB::beginTransaction();
         try {
             $isPosting = $request->input('action') === 'save_post';
+            
+            // Dapatkan ID gudang tujuan dari transfer yang terhubung
+            $destinationWarehouseId = $header->transferHeader->Trx_RcvNo;
+            if (!$destinationWarehouseId) {
+                throw new Exception("Gagal menemukan gudang tujuan dari referensi transfer.");
+            }
 
             // Update header
             $header->update([
@@ -193,49 +204,90 @@ class TerimaGudangController extends Controller
                     'Rcv_cogs' => $item['Rcv_cogs'],
                     'Rcv_subtotal' => ($item['Rcv_Qty_Received'] * $item['Rcv_cogs']),
                 ]);
+
+                // (LOGIKA BARU) Jika di-posting, tambahkan stok ke gudang tujuan
+                if ($isPosting && $item['Rcv_Qty_Received'] > 0) {
+                    $this->addStockToWarehouse(
+                        $item['Rcv_ProdCode'],
+                        $destinationWarehouseId,
+                        $item['Rcv_Qty_Received']
+                    );
+                }
             }
 
             DB::commit();
-            $message = $isPosting ? 'Penerimaan berhasil diposting.' : 'Draft penerimaan berhasil diperbarui.';
+            $message = $isPosting ? 'Penerimaan berhasil diposting dan stok telah diperbarui.' : 'Draft penerimaan berhasil diperbarui.';
             return redirect()->route('terimagudang.index')->with('success', $message);
 
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Gagal update penerimaan: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Terjadi kesalahan saat update: ' . $e->getMessage())->withInput();
         }
     }
 
-    /**
-     * Menghapus draft penerimaan.
-     */
+    
     public function destroy($id)
     {
         $header = TerimaGudangHeader::findOrFail($id);
-
         if ($header->rcv_posting === 'T') {
             return redirect()->back()->with('error', 'Penerimaan yang sudah di-posting tidak dapat dihapus.');
         }
-
-        // Transaksi untuk memastikan detail dan header terhapus bersamaan
         DB::transaction(function () use ($header) {
             $header->details()->delete();
             $header->delete();
         });
-
         return redirect()->route('terimagudang.index')->with('success', 'Draft penerimaan berhasil dihapus.');
     }
 
-    /**
-     * Mengambil detail transfer untuk AJAX.
-     */
+    
     public function getTransferDetails($transferId)
     {
-        $transfer = TransferHeader::with('details')->find($transferId);
+        $transfer = TransferHeader::with('details.produk')->find($transferId); // Load relasi produk
 
         if (!$transfer) {
             return response()->json(['error' => 'Transfer tidak ditemukan'], 404);
         }
+        
+        // (PERBAIKAN) Kirim NAMA gudang ke view
+        $data = $transfer->toArray();
+        $data['Trx_WareCode'] = $transfer->gudangPengirim->WARE_Name ?? 'N/A';
+        $data['Trx_RcvNo'] = $transfer->gudangPenerima->WARE_Name ?? 'N/A';
 
-        return response()->json($transfer);
+        return response()->json($data);
+    }
+    
+    /**
+     * (HELPER BARU)
+     * Menambah/membuat stok di gudang tujuan
+     */
+    private function addStockToWarehouse($prodCode, $warehouseId, $qty)
+    {
+        if ($qty <= 0) return;
+
+        // 1. Cari stok produk di gudang TUJUAN
+        $stock = Dtproduk::where('kode_produk', $prodCode)
+                           ->where('WARE_Auto', $warehouseId)
+                           ->first();
+                           
+        if ($stock) {
+            // 2. Jika sudah ada, tambahkan stoknya
+            $stock->stok += $qty;
+            $stock->save();
+        } else {
+            // 3. Jika belum ada, buat baris stok baru
+            // (Kita perlu mengambil data produk dari gudang lain sebagai template)
+            $productTemplate = Dtproduk::where('kode_produk', $prodCode)->first();
+            
+            Dtproduk::create([
+                'kode_produk' => $prodCode,
+                'nama_produk' => $productTemplate->nama_produk ?? 'N/A',
+                'kelompok' => $productTemplate->kelompok ?? null,
+                'satuan' => $productTemplate->satuan ?? 'PCS',
+                'harga_jual' => $productTemplate->harga_jual ?? 0,
+                'WARE_Auto' => $warehouseId, // ID Gudang Tujuan
+                'stok' => $qty, // Stok awal
+            ]);
+        }
     }
 }
