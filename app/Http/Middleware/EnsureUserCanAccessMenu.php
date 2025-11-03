@@ -17,6 +17,7 @@ class EnsureUserCanAccessMenu
 
         $routeName = $request->route()->getName();
 
+
         // Jika route tidak memiliki nama atau route khusus yang boleh diakses
         if (is_null($routeName)) {
             return $next($request);
@@ -58,6 +59,7 @@ class EnsureUserCanAccessMenu
             'profile' => 'profile',
             'rekap.generate' => 'absensi',
             'inventory.stock_report' => 'warehouse',
+            'transfergudang.inTransit' => 'transfergudang',
         ];
 
         if (array_key_exists($routeName, $specialMappings)) {
@@ -120,8 +122,9 @@ class EnsureUserCanAccessMenu
             // Aksi Printing
             'print',
             'printAll',
-
             'getProducts',
+
+            'inTransit'
         ];
 
         if (count($parts) > 1 && in_array($action, $standardActions)) {

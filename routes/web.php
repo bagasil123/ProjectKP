@@ -240,8 +240,6 @@ Route::middleware(['auth', 'can.access.menu'])->group(function () {
         Route::delete('/penerimaan/{penerimaanId}/details/{detailId}', [PenerimaanController::class, 'deleteDetail'])->name('penerimaan.delete-detail');
         Route::post('/penerimaan/{id}/publish', [PenerimaanController::class, 'publish'])->name('penerimaan.publish');
         Route::delete('/penerimaan/{id}/cancel', [PenerimaanController::class, 'cancel'])->name('penerimaan.cancel');
-        
-        // ##### TAMBAHKAN ROUTE LAPORAN STOK DI SINI #####
         Route::get('/stock-report', [StockReportController::class, 'index'])->name('inventory.stock_report');
     });
 
@@ -263,6 +261,7 @@ Route::middleware(['auth', 'can.access.menu'])->group(function () {
     });
 
     // --- Gudang Routes ---
+    
     Route::prefix('mutasigudang')->middleware(['auth'])->group(function () {
 
         // Gudang
@@ -285,6 +284,7 @@ Route::middleware(['auth', 'can.access.menu'])->group(function () {
         Route::put('gudangorder/{id}/submit', [GudangOrderController::class, 'submit'])->name('gudangorder.submit');
 
         // Transfer Gudang
+        Route::get('transfergudang/in-transit', [TransferGudangController::class, 'showInTransit'])->name('transfergudang.inTransit');
         Route::get('transfergudang', [TransferGudangController::class, 'index'])->name('transfergudang.index');
         Route::get('transfergudang/create', [TransferGudangController::class, 'create'])->name('transfergudang.create');
         Route::get('transfergudang/{id}/edit', [TransferGudangController::class, 'edit'])->name('transfergudang.edit');
@@ -296,8 +296,7 @@ Route::middleware(['auth', 'can.access.menu'])->group(function () {
         Route::delete('transfergudang/{id}/details/{detailId}', [TransferGudangController::class, 'destroyDetail'])->name('transfergudang.destroyDetail');
         Route::get('transfergudang/fetch-details/{permintaanId}', [TransferGudangController::class, 'fetchPermintaanDetails'])->name('transfergudang.fetchDetails');
         Route::post('transfergudang/{id}/sync-details', [TransferGudangController::class, 'syncDetailsFromPermintaan'])->name('transfergudang.syncDetails');
-        Route::get('transfergudang/in-transit', [TransferGudangController::class, 'showInTransit'])->name('transfergudang.inTransit');
-        
+
         //PenerimaanGudang
         Route::get('terimagudang', [TerimaGudangController::class, 'index'])->name('terimagudang.index');
         Route::get('terimagudang/create', [TerimaGudangController::class, 'create'])->name('terimagudang.create');

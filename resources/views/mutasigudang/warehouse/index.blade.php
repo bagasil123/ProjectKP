@@ -41,7 +41,6 @@
                             <th>Web</th>
                             <th>Catatan 1</th>
                             <th>Catatan 2</th>
-                            <th>Pengguna</th>
                             <th>Tanggal</th>
                             <th>Aksi</th>
                         </tr>
@@ -57,7 +56,6 @@
                             <td>{{ $warehouse->WARE_Web }}</td>
                             <td>{{ $warehouse->ware_note1 }}</td>
                             <td>{{ $warehouse->ware_note2 }}</td>
-                            <td>{{ auth()->user()->name ?? '-' }}</td>
                             <td>{{ $warehouse->WARE_EntryDate ? \Carbon\Carbon::parse($warehouse->WARE_EntryDate)->format('d F Y') : '' }}</td>
                             <td>
                                 <div class="d-flex gap-2">

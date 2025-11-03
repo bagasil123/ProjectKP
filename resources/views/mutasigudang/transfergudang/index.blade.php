@@ -32,11 +32,11 @@
             
             {{-- (PERBAIKAN UI) Tombol baru untuk Stok Menggantung --}}
             <div>
-                <a href="{{ route('transfergudang.inTransit') }}" class="btn btn-info btn-sm mr-2">
-                    <i class="fas fa-truck fa-sm"></i> {{ __('Barang Dalam Perjalanan') }}
-                </a>
                 <a href="{{ route('transfergudang.create') }}" class="btn btn-primary btn-sm">
                     <i class="fas fa-plus fa-sm"></i> {{ __('Buat Transfer Baru') }}
+                </a>
+                <a href="{{ url('/mutasigudang/transfergudang/in-transit') }}" class="btn btn-info btn-sm mr-2">
+                    <i class="fas fa-truck fa-sm"></i> {{ __('Barang Dalam Perjalanan') }}
                 </a>
             </div>
             
@@ -515,10 +515,22 @@ $(document).ready(function() {
 
     $('#btnSubmitTransfer').click(function() {
         const hasItems = $('#detailTable tbody tr').not(':has(td[colspan])').length > 0;
+        const gudangAsal = $('#Trx_WareCode').val();
+        const gudangTujuan = $('#Trx_RcvNo').val();
+
         if (!hasItems) {
             Swal.fire('Peringatan!', 'Tambahkan minimal satu barang sebelum posting.', 'warning');
             return;
         }
+        if (!gudangAsal || !gudangTujuan) {
+        Swal.fire('Peringatan!', 'Gudang asal dan tujuan harus dipilih.', 'warning');
+        return;
+        }
+        if (gudangAsal === gudangTujuan) {
+            Swal.fire('Peringatan!', 'Gudang asal dan tujuan tidak boleh sama.', 'warning');
+            return;
+        }
+        
         Swal.fire({
             title: 'Simpan & Posting Transfer?', 
             text: "Stok gudang asal akan dikurangi dan barang akan masuk ke 'Dalam Perjalanan'.", 

@@ -195,21 +195,24 @@ class TransferGudangController extends Controller
                 $prodCode = $detail->Trx_ProdCode;
                 $qty      = $detail->Trx_QtyTrx;
 
+                // PERBAIKAN: Gunakan 'qty' bukan 'stok'
                 $stock = Dtproduk::where('kode_produk', $prodCode)
-                                   ->where('WARE_Auto', $sourceWarehouseId)
-                                   ->lockForUpdate()
-                                   ->first();
+                                ->where('WARE_Auto', $sourceWarehouseId)
+                                ->lockForUpdate()
+                                ->first();
 
                 if (!$stock) {
                     throw new Exception("Produk {$prodCode} tidak ditemukan di gudang (ID: {$sourceWarehouseId}).");
                 }
                 
-                if ($stock->stok < $qty) {
+                // PERBAIKAN: Gunakan 'qty' bukan 'stok'
+                if ($stock->qty < $qty) {
                     $gudang = $transfer->gudangPengirim->WARE_Name ?? "ID: {$sourceWarehouseId}";
-                    throw new Exception("Stok tidak cukup untuk produk {$prodCode} di {$gudang} (tersedia: {$stock->stok}, dibutuhkan: {$qty}).");
+                    throw new Exception("Stok tidak cukup untuk produk {$prodCode} di {$gudang} (tersedia: {$stock->qty}, dibutuhkan: {$qty}).");
                 }
 
-                $stock->stok -= $qty;
+                // PERBAIKAN: Kurangi 'qty' bukan 'stok'
+                $stock->qty -= $qty;
                 $stock->save(); 
             }
 
@@ -226,24 +229,54 @@ class TransferGudangController extends Controller
     }
 
     
-    // =========================================================================
-    // == (FUNGSI BARU UNTUK TOMBOL "BARANG DALAM PERJALANAN") ==
-    // =========================================================================
-    
     public function showInTransit()
     {
-        // 1. Ambil semua transfer yang sudah di-posting (T)
-        // 2. TAPI belum memiliki relasi 'penerimaan' (artinya belum diterima)
-        $inTransitTransfers = TransferHeader::with('details.produk', 'gudangPengirim', 'gudangPenerima')
-            ->where('trx_posting', 'T')
-            ->whereDoesntHave('penerimaan')
-            ->orderBy('Trx_Date', 'desc')
-            ->get();
+        try {
+            Log::info('=== ACCESSING IN_TRANSIT METHOD ===');
             
-        // 3. Kirim data ke view baru
-        return view('mutasigudang.transfergudang.in_transit', compact('inTransitTransfers'));
+            $user = Auth::user();
+            $isSuperAdmin = ($user->role_id == 1);
+            $accessibleWarehouses = $user->warehouse_access ?? [];
+
+            Log::info('User: ' . $user->name . ', Role: ' . $user->role_id);
+            Log::info('Accessible Warehouses: ' . json_encode($accessibleWarehouses));
+
+            // Query transfer yang sudah diposting (status 'T')
+            $query = TransferHeader::with([
+                'details', 
+                'gudangPengirim', 
+                'gudangPenerima'
+            ])->where('trx_posting', 'T');
+
+            // Filter berdasarkan akses gudang jika bukan super admin
+            if (!$isSuperAdmin && !empty($accessibleWarehouses)) {
+                $query->where(function ($q) use ($accessibleWarehouses) {
+                    $q->whereIn('Trx_WareCode', $accessibleWarehouses)
+                    ->orWhereIn('Trx_RcvNo', $accessibleWarehouses);
+                });
+            }
+
+            $inTransitTransfers = $query->orderBy('Trx_Date', 'desc')
+                                        ->orderBy('Trx_Auto', 'desc')
+                                        ->get();
+
+            Log::info('Found transfers: ' . $inTransitTransfers->count());
+
+            // Gunakan view yang baru
+            return view('mutasigudang.in_transit.index', [
+                'inTransitTransfers' => $inTransitTransfers
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in showInTransit: ' . $e->getMessage());
+            Log::error('File: ' . $e->getFile() . ' Line: ' . $e->getLine());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            
+            return redirect()->route('transfergudang.index')
+                            ->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+        }
     }
-    
+       
     
     // =========================================================================
     // == (FUNGSI SISANYA SUDAH BENAR) ==

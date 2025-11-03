@@ -9,25 +9,6 @@
         </a>
     </div>
     
-    {{-- Alert Session --}}
-    @if (session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            {{ session('success') }}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-            </button>
-        </div>
-    @endif
-
-    @if (session('error'))
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            {{ session('error') }}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-            </button>
-        </div>
-    @endif
-
     <p class="mb-4">Daftar ini berisi semua barang yang telah dikirim dari gudang asal (stok sudah berkurang) tetapi belum diterima di gudang tujuan.</p>
 
     <div class="card shadow mb-4">
@@ -35,16 +16,7 @@
             <h6 class="m-0 font-weight-bold text-primary">Daftar Transfer Dalam Perjalanan</h6>
         </div>
         <div class="card-body">
-            {{-- Debug Info --}}
-            @if(empty($inTransitTransfers))
-                <div class="alert alert-warning">
-                    <strong>Debug:</strong> Variable $inTransitTransfers tidak terdefinisi
-                </div>
-            @elseif($inTransitTransfers->count() == 0)
-                <div class="alert alert-info">
-                    Tidak ada barang dalam perjalanan saat ini.
-                </div>
-            @else
+            @if($inTransitTransfers->count() > 0)
                 <div class="table-responsive">
                     <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
                         <thead class="thead-light">
@@ -96,6 +68,10 @@
                         </tbody>
                     </table>
                 </div>
+            @else
+                <div class="alert alert-info">
+                    Tidak ada barang dalam perjalanan saat ini.
+                </div>
             @endif
         </div>
     </div>
@@ -105,10 +81,9 @@
 @push('scripts')
 <script>
 $(document).ready(function() {
-    // Inisialisasi DataTable hanya jika ada data
-    @if(isset($inTransitTransfers) && $inTransitTransfers->count() > 0)
+    @if($inTransitTransfers->count() > 0)
         $('#dataTable').DataTable({
-            "order": [[ 1, "desc" ]], // Urutkan berdasarkan tanggal
+            "order": [[ 1, "desc" ]],
             "language": {
                 "url": "//cdn.datatables.net/plug-ins/1.10.24/i18n/Indonesian.json"
             }

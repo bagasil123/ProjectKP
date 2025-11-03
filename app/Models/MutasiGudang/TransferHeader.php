@@ -25,7 +25,7 @@ class TransferHeader extends Model
         'Trx_RcvNo',        // Menyimpan ID (WARE_Auto)
         'Trx_Note',
         'trx_posting',      
-        'user_id',          
+        'Trx_UserID',          
         'ref_pur_auto',     
         'bruto_from_permintaan',
         'diskon_from_permintaan',
