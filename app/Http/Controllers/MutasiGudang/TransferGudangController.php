@@ -65,33 +65,29 @@ class TransferGudangController extends Controller
     public function edit($id)
     {
         $user = Auth::user();
+        
+        // SEMUA AKUN BISA AKSES SEMUA GUDANG
+        $warehouses = Warehouse::all(); // Ambil semua tanpa filter
+        
         $isSuperAdmin = ($user->role_id == 1);
         $accessibleWarehouses = $user->warehouse_access ?? [];
 
-        // (PERBAIKAN) Muat relasi 'details.produk'
-        // Ini akan memperbaiki data 'N/A' di view
         $transfer = TransferHeader::with('details.produk')->findOrFail($id);
         
-        if ($isSuperAdmin) {
-            $warehouses = Warehouse::all();
-        } else {
-            $warehouses = Warehouse::whereIn('WARE_Auto', $accessibleWarehouses)->get();
-        }
-
         $permintaanQuery = GudangOrder::with('gudangPengirim', 'gudangPenerima')
-                                      ->where('pur_status', 'submitted'); 
+                                    ->where('pur_status', 'submitted'); 
 
         if (!$isSuperAdmin) {
             $permintaanQuery->where(function ($q) use ($accessibleWarehouses) {
                 $q->whereIn('pur_warehouse', $accessibleWarehouses) 
-                  ->orWhereIn('pur_destination', $accessibleWarehouses);
+                ->orWhereIn('pur_destination', $accessibleWarehouses);
             });
         }
         $permintaanGudang = $permintaanQuery->orderBy('Pur_Auto', 'desc')->get();
         
         return view('mutasigudang.transfergudang.index', compact('transfer', 'warehouses', 'permintaanGudang'));
     }
-    
+        
     public function show($id)
     {
         return $this->edit($id); 

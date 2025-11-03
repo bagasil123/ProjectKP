@@ -49,6 +49,9 @@ class TerimaGudangController extends Controller
     
     public function create()
     {
+        // SEMUA AKUN BISA AKSES SEMUA GUDANG
+        $warehouses = Warehouse::all(); // Ambil semua gudang tanpa filter
+        
         $user = Auth::user();
         $isSuperAdmin = ($user->role_id == 1);
         $accessibleWarehouses = $user->warehouse_access ?? [];
@@ -56,29 +59,33 @@ class TerimaGudangController extends Controller
         // Ambil daftar transfer yang bisa dipilih
         $transferQuery = TransferHeader::where('trx_posting', 'T')
             ->whereDoesntHave('penerimaan'); // Hanya yg belum diterima
-            
+                
         if (!$isSuperAdmin) {
-            // User hanya bisa melihat transfer yg TUJUANNYA (Trx_RcvNo) adalah gudang mereka
-             $transferQuery->whereIn('Trx_RcvNo', $accessibleWarehouses);
+            // Tapi untuk transfer, tetap filter berdasarkan akses
+            $transferQuery->whereIn('Trx_RcvNo', $accessibleWarehouses);
         }
 
         $postedTransfers = $transferQuery->get();
         $penerimaan = new TerimaGudangHeader();
 
-        return view('mutasigudang.terimagudang.index', compact('penerimaan', 'postedTransfers'));
+        return view('mutasigudang.terimagudang.index', compact('penerimaan', 'postedTransfers', 'warehouses'));
     }
+
 
     
     public function edit($id)
     {
         $penerimaan = TerimaGudangHeader::with('details')->findOrFail($id);
 
-        // Ambil SEMUA transfer posted, untuk
-        // memastikan transfer yg dipilih sebelumnya tetap tampil di dropdown
-         $postedTransfers = TransferHeader::where('trx_posting', 'T')->get();
+        // SEMUA AKUN BISA AKSES SEMUA GUDANG
+        $warehouses = Warehouse::all(); // Ambil semua gudang tanpa filter
+        
+        // Ambil SEMUA transfer posted
+        $postedTransfers = TransferHeader::where('trx_posting', 'T')->get();
 
-        return view('mutasigudang.terimagudang.index', compact('penerimaan', 'postedTransfers'));
+        return view('mutasigudang.terimagudang.index', compact('penerimaan', 'postedTransfers', 'warehouses'));
     }
+
 
     
     public function store(Request $request)
@@ -243,20 +250,48 @@ class TerimaGudangController extends Controller
     
     public function getTransferDetails($transferId)
     {
-        $transfer = TransferHeader::with('details.produk')->find($transferId); // Load relasi produk
+        try {
+            Log::info("Getting transfer details for ID: {$transferId}");
+            
+            $transfer = TransferHeader::with([
+                'details.produk', 
+                'gudangPengirim', 
+                'gudangPenerima'
+            ])->find($transferId);
 
-        if (!$transfer) {
-            return response()->json(['error' => 'Transfer tidak ditemukan'], 404);
+            if (!$transfer) {
+                Log::error("Transfer not found: {$transferId}");
+                return response()->json(['error' => 'Transfer tidak ditemukan'], 404);
+            }
+
+            // DEBUG: Cek data relasi
+            Log::info("Transfer found: {$transfer->trx_number}");
+            Log::info("Gudang Pengirim ID: {$transfer->Trx_WareCode}");
+            Log::info("Gudang Penerima ID: {$transfer->Trx_RcvNo}");
+            Log::info("Gudang Pengirim Object: " . ($transfer->gudangPengirim ? 'Exists' : 'NULL'));
+            Log::info("Gudang Penerima Object: " . ($transfer->gudangPenerima ? 'Exists' : 'NULL'));
+
+            if ($transfer->gudangPengirim) {
+                Log::info("Gudang Pengirim Name: {$transfer->gudangPengirim->WARE_Name}");
+            }
+            if ($transfer->gudangPenerima) {
+                Log::info("Gudang Penerima Name: {$transfer->gudangPenerima->WARE_Name}");
+            }
+
+            $data = $transfer->toArray();
+            
+            // Pastikan nama gudang terbaca
+            $data['Trx_WareCode_name'] = $transfer->gudangPengirim->WARE_Name ?? 'N/A';
+            $data['Trx_RcvNo_name'] = $transfer->gudangPenerima->WARE_Name ?? 'N/A';
+
+            return response()->json($data);
+
+        } catch (\Exception $e) {
+            Log::error("Error in getTransferDetails: " . $e->getMessage());
+            return response()->json(['error' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
         }
-        
-        // (PERBAIKAN) Kirim NAMA gudang ke view
-        $data = $transfer->toArray();
-        $data['Trx_WareCode'] = $transfer->gudangPengirim->WARE_Name ?? 'N/A';
-        $data['Trx_RcvNo'] = $transfer->gudangPenerima->WARE_Name ?? 'N/A';
-
-        return response()->json($data);
     }
-    
+        
     /**
  * (PERBAIKAN) Menambah/membuat stok di gudang tujuan
  * Dengan composite key: kode_produk + WARE_Auto

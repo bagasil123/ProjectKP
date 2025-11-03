@@ -204,16 +204,171 @@
 {{-- (Script JS Anda di file ini sudah benar) --}}
 <script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-$(document).ready(function() {
-    @if(isset($penerimaanList))
-        $('#dataTable').DataTable();
+// Function untuk load semua gudang (accessible by all users)
+    function loadAllWarehouses() {
+        $.ajax({
+            url: '{{ route("warehouse.getAll") }}',
+            type: 'GET',
+            success: function(response) {
+                // Update dropdown gudang asal
+                $('#Trx_WareCode').empty().append('<option value="">-- Pilih Gudang --</option>');
+                // Update dropdown gudang tujuan  
+                $('#Trx_RcvNo').empty().append('<option value="">-- Pilih Gudang --</option>');
+                
+                response.forEach(function(warehouse) {
+                    $('#Trx_WareCode').append(`<option value="${warehouse.WARE_Auto}">${warehouse.WARE_Name}</option>`);
+                    $('#Trx_RcvNo').append(`<option value="${warehouse.WARE_Auto}">${warehouse.WARE_Name}</option>`);
+                });
+            },
+            error: function() {
+                console.error('Gagal memuat data gudang');
+            }
+        });
+    }
 
-        $('#dataTable').on('click', '.delete-draft-btn', function() {
-            const penerimaanId = $(this).data('id');
-            const baseUrl = '{{ url("/mutasigudang/terimagudang") }}';
+    // Panggil saat halaman load
+    $(document).ready(function() {
+        loadAllWarehouses();
+    });
+
+
+    $(document).ready(function() {
+        @if(isset($penerimaanList))
+            $('#dataTable').DataTable();
+
+            $('#dataTable').on('click', '.delete-draft-btn', function() {
+                const penerimaanId = $(this).data('id');
+                const baseUrl = '{{ url("/mutasigudang/terimagudang") }}';
+                Swal.fire({
+                    title: 'Hapus Draft Penerimaan Ini?', text: "Aksi ini tidak dapat dibatalkan.", icon: 'warning',
+                    showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, hapus!', cancelButtonText: 'Batal'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        const form = $(`<form action="${baseUrl}/${penerimaanId}" method="POST" style="display:none;"><input type="hidden" name="_method" value="DELETE"><input type="hidden" name="_token" value="{{ csrf_token() }}"></form>`);
+                        $('body').append(form);
+                        form.submit();
+                    }
+                });
+            });
+        @endif
+
+        @if(isset($penerimaan))
+        const baseUrl = '{{ url("/mutasigudang/terimagudang") }}';
+
+        // --- LOGIKA UTAMA: Ambil Data dari Transfer Gudang via AJAX ---
+        $('#transfer_id').on('change', function() {
+            const transferId = $(this).val();
+            if (!transferId) {
+                $('#Rcv_From, #Rcv_WareCode').val('');
+                $('#detailTableBody').html('<tr><td colspan="8" class="text-center">Pilih nomor transfer untuk memuat data barang.</td></tr>');
+                return;
+            }
+            $('#detailTableBody').html('<tr><td colspan="8" class="text-center"><i class="fas fa-spinner fa-spin"></i> Memuat data...</td></tr>');
+
+            $.ajax({
+                url: `${baseUrl}/get-transfer-details/${transferId}`, type: 'GET',
+                // Di dalam success function AJAX getTransferDetails
+                // Di dalam success function AJAX getTransferDetails
+                success: function(response) {
+                    console.log("Transfer Response:", response); // Debug di browser console
+                    
+                    // PERBAIKAN: Gunakan field yang benar untuk nama gudang
+                    const gudangAsal = response.Trx_WareCode_name || response.gudang_pengirim?.WARE_Name || 'N/A';
+                    const gudangTujuan = response.Trx_RcvNo_name || response.gudang_penerima?.WARE_Name || 'N/A';
+                    
+                    $('#Rcv_From').val(gudangAsal);
+                    $('#Rcv_WareCode').val(gudangTujuan);
+                    
+                    const tableBody = $('#detailTableBody');
+                    tableBody.empty();
+                    
+                    if (response.details && response.details.length > 0) {
+                        response.details.forEach(function(item, index) {
+                            const productName = item.produk?.nama_produk || item.trx_prodname || item.Trx_ProdCode;
+                            const productUom = item.trx_uom || item.produk?.satuan || 'PCS';
+                            const subtotal = (parseFloat(item.Trx_QtyTrx) * parseFloat(item.trx_cogs)).toFixed(2);
+                            
+                            const rowHtml = `
+                                <tr>
+                                    <td>${item.Trx_ProdCode}</td>
+                                    <td>${productName}
+                                        <input type="hidden" name="details[${index}][Rcv_ProdCode]" value="${item.Trx_ProdCode}">
+                                        <input type="hidden" name="details[${index}][Rcv_prodname]" value="${productName}">
+                                        <input type="hidden" name="details[${index}][Rcv_cogs]" class="detail-cogs" value="${item.trx_cogs}">
+                                    </td>
+                                    <td>${productUom}<input type="hidden" name="details[${index}][Rcv_uom]" value="${productUom}"></td>
+                                    <td class="text-end detail-qty-sent-display">${item.Trx_QtyTrx}<input type="hidden" name="details[${index}][Rcv_Qty_Sent]" value="${item.Trx_QtyTrx}"></td>
+                                    <td><input type="number" name="details[${index}][Rcv_Qty_Received]" class="form-control text-end detail-calc detail-qty-received" value="${item.Trx_QtyTrx}" min="0" max="${item.Trx_QtyTrx}"></td>
+                                    <td><input type="number" name="details[${index}][Rcv_Qty_Rejected]" class="form-control text-end detail-calc detail-qty-rejected" value="0" min="0" max="${item.Trx_QtyTrx}"></td>
+                                    <td class="text-end">${Number(item.trx_cogs).toLocaleString('id-ID', {minimumFractionDigits: 2})}</td>
+                                    <td class="text-end fw-bold detail-subtotal">${Number(subtotal).toLocaleString('id-ID', {minimumFractionDigits: 2})}</td>
+                                </tr>`;
+                            tableBody.append(rowHtml);
+                        });
+                    } else {
+                        tableBody.html('<tr><td colspan="8" class="text-center">Transfer ini tidak memiliki detail barang.</td></tr>');
+                    }
+                },
+                error: function(xhr) {
+                    console.error("AJAX Error:", xhr);
+                    $('#detailTableBody').html('<tr><td colspan="8" class="text-center text-danger">Gagal memuat data transfer.</td></tr>');
+                    Swal.fire('Error!', xhr.responseJSON?.error || 'Gagal menghubungi server.', 'error');
+                }
+
+            });
+        });
+
+        // --- KALKULASI REAL-TIME & VALIDASI UNTUK FORM DETAIL ---
+        function calculateRow(row) {
+            const qtySent = parseFloat(row.find('.detail-qty-sent-display').text()) || 0;
+            let qtyReceived = parseFloat(row.find('.detail-qty-received').val()) || 0;
+            let qtyRejected = parseFloat(row.find('.detail-qty-rejected').val()) || 0;
+            const cogs = parseFloat(row.find('.detail-cogs').val()) || 0;
+
+            // Validasi: Diterima + Ditolak tidak boleh > Dikirim
+            if (qtyReceived + qtyRejected > qtySent) {
+                qtyRejected = qtySent - qtyReceived;
+                if (qtyRejected < 0) {
+                    qtyRejected = 0;
+                    // (Opsional) Sesuaikan qtyReceived jika qtyRejected yang memicu
+                    qtyReceived = qtySent;
+                    row.find('.detail-qty-received').val(qtyReceived);
+                }
+                row.find('.detail-qty-rejected').val(qtyRejected);
+            }
+
+            const subtotal = qtyReceived * cogs;
+            row.find('.detail-subtotal').text(subtotal.toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        }
+        $('#detailTableBody').on('keyup change', '.detail-calc', function() {
+            calculateRow($(this).closest('tr'));
+        });
+
+        // --- LOGIKA TOMBOL AKSI ---
+        $('#btnSubmitPenerimaan').click(function(e) {
+            e.preventDefault();
+            const hasItems = $('#detailTableBody tr').length > 0 && !$('#detailTableBody td[colspan]').length;
+            if (!hasItems) {
+                Swal.fire('Peringatan!', 'Pilih transfer dan pastikan ada barang yang akan diterima sebelum posting.', 'warning');
+                return;
+            }
             Swal.fire({
-                title: 'Hapus Draft Penerimaan Ini?', text: "Aksi ini tidak dapat dibatalkan.", icon: 'warning',
-                showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, hapus!', cancelButtonText: 'Batal'
+                title: 'Simpan & Posting Penerimaan?', text: "Stok akan diperbarui dan data tidak bisa diubah lagi.",
+                icon: 'question', showCancelButton: true, confirmButtonColor: '#28a745',
+                confirmButtonText: 'Ya, Posting!', cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $('#penerimaanForm').append('<input type="hidden" name="action" value="save_post" />').submit();
+                }
+            });
+        });
+
+        $('#btnCancelDraft').click(function() {
+            const penerimaanId = $('#penerimaanId').val();
+            Swal.fire({
+                title: 'Batalkan & Hapus Draft Ini?', text: "Seluruh data akan dihapus permanen.",
+                icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33',
+                confirmButtonText: 'Ya, Hapus Draft!', cancelButtonText: 'Batal'
             }).then((result) => {
                 if (result.isConfirmed) {
                     const form = $(`<form action="${baseUrl}/${penerimaanId}" method="POST" style="display:none;"><input type="hidden" name="_method" value="DELETE"><input type="hidden" name="_token" value="{{ csrf_token() }}"></form>`);
@@ -222,125 +377,7 @@ $(document).ready(function() {
                 }
             });
         });
-    @endif
-
-    @if(isset($penerimaan))
-    const baseUrl = '{{ url("/mutasigudang/terimagudang") }}';
-
-    // --- LOGIKA UTAMA: Ambil Data dari Transfer Gudang via AJAX ---
-    $('#transfer_id').on('change', function() {
-        const transferId = $(this).val();
-        if (!transferId) {
-            $('#Rcv_From, #Rcv_WareCode').val('');
-            $('#detailTableBody').html('<tr><td colspan="8" class="text-center">Pilih nomor transfer untuk memuat data barang.</td></tr>');
-            return;
-        }
-        $('#detailTableBody').html('<tr><td colspan="8" class="text-center"><i class="fas fa-spinner fa-spin"></i> Memuat data...</td></tr>');
-
-        $.ajax({
-            url: `${baseUrl}/get-transfer-details/${transferId}`, type: 'GET',
-            // Di dalam success function AJAX getTransferDetails
-            success: function(response) {
-                $('#Rcv_From').val(response.Trx_WareCode);
-                $('#Rcv_WareCode').val(response.Trx_RcvNo);
-                const tableBody = $('#detailTableBody');
-                tableBody.empty();
-                
-                if (response.details && response.details.length > 0) {
-                    response.details.forEach(function(item, index) {
-                        // PERBAIKAN: Gunakan fallback untuk nama produk
-                        const productName = item.produk?.nama_produk || item.trx_prodname || item.Trx_ProdCode;
-                        const productUom = item.trx_uom || item.produk?.satuan || 'PCS';
-                        const subtotal = (parseFloat(item.Trx_QtyTrx) * parseFloat(item.trx_cogs)).toFixed(2);
-                        
-                        const rowHtml = `
-                            <tr>
-                                <td>${item.Trx_ProdCode}</td>
-                                <td>${productName}
-                                    <input type="hidden" name="details[${index}][Rcv_ProdCode]" value="${item.Trx_ProdCode}">
-                                    <input type="hidden" name="details[${index}][Rcv_prodname]" value="${productName}">
-                                    <input type="hidden" name="details[${index}][Rcv_cogs]" class="detail-cogs" value="${item.trx_cogs}">
-                                </td>
-                                <td>${productUom}<input type="hidden" name="details[${index}][Rcv_uom]" value="${productUom}"></td>
-                                <td class="text-end detail-qty-sent-display">${item.Trx_QtyTrx}<input type="hidden" name="details[${index}][Rcv_Qty_Sent]" value="${item.Trx_QtyTrx}"></td>
-                                <td><input type="number" name="details[${index}][Rcv_Qty_Received]" class="form-control text-end detail-calc detail-qty-received" value="${item.Trx_QtyTrx}" min="0" max="${item.Trx_QtyTrx}"></td>
-                                <td><input type="number" name="details[${index}][Rcv_Qty_Rejected]" class="form-control text-end detail-calc detail-qty-rejected" value="0" min="0" max="${item.Trx_QtyTrx}"></td>
-                                <td class="text-end">${Number(item.trx_cogs).toLocaleString('id-ID', {minimumFractionDigits: 2})}</td>
-                                <td class="text-end fw-bold detail-subtotal">${Number(subtotal).toLocaleString('id-ID', {minimumFractionDigits: 2})}</td>
-                            </tr>`;
-                        tableBody.append(rowHtml);
-                    });
-                } else {
-                    tableBody.html('<tr><td colspan="8" class="text-center">Transfer ini tidak memiliki detail barang.</td></tr>');
-                }
-            },
-            error: function(xhr) {
-                $('#detailTableBody').html('<tr><td colspan="8" class="text-center text-danger">Gagal memuat data.</td></tr>');
-                Swal.fire('Error!', xhr.responseJSON?.message || 'Gagal menghubungi server.', 'error');
-            }
-        });
+        @endif
     });
-
-    // --- KALKULASI REAL-TIME & VALIDASI UNTUK FORM DETAIL ---
-    function calculateRow(row) {
-        const qtySent = parseFloat(row.find('.detail-qty-sent-display').text()) || 0;
-        let qtyReceived = parseFloat(row.find('.detail-qty-received').val()) || 0;
-        let qtyRejected = parseFloat(row.find('.detail-qty-rejected').val()) || 0;
-        const cogs = parseFloat(row.find('.detail-cogs').val()) || 0;
-
-        // Validasi: Diterima + Ditolak tidak boleh > Dikirim
-        if (qtyReceived + qtyRejected > qtySent) {
-            qtyRejected = qtySent - qtyReceived;
-            if (qtyRejected < 0) {
-                qtyRejected = 0;
-                // (Opsional) Sesuaikan qtyReceived jika qtyRejected yang memicu
-                qtyReceived = qtySent;
-                row.find('.detail-qty-received').val(qtyReceived);
-            }
-            row.find('.detail-qty-rejected').val(qtyRejected);
-        }
-
-        const subtotal = qtyReceived * cogs;
-        row.find('.detail-subtotal').text(subtotal.toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
-    }
-    $('#detailTableBody').on('keyup change', '.detail-calc', function() {
-        calculateRow($(this).closest('tr'));
-    });
-
-    // --- LOGIKA TOMBOL AKSI ---
-    $('#btnSubmitPenerimaan').click(function(e) {
-        e.preventDefault();
-        const hasItems = $('#detailTableBody tr').length > 0 && !$('#detailTableBody td[colspan]').length;
-        if (!hasItems) {
-            Swal.fire('Peringatan!', 'Pilih transfer dan pastikan ada barang yang akan diterima sebelum posting.', 'warning');
-            return;
-        }
-        Swal.fire({
-            title: 'Simpan & Posting Penerimaan?', text: "Stok akan diperbarui dan data tidak bisa diubah lagi.",
-            icon: 'question', showCancelButton: true, confirmButtonColor: '#28a745',
-            confirmButtonText: 'Ya, Posting!', cancelButtonText: 'Batal'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                $('#penerimaanForm').append('<input type="hidden" name="action" value="save_post" />').submit();
-            }
-        });
-    });
-
-    $('#btnCancelDraft').click(function() {
-        const penerimaanId = $('#penerimaanId').val();
-        Swal.fire({
-            title: 'Batalkan & Hapus Draft Ini?', text: "Seluruh data akan dihapus permanen.",
-            icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33',
-            confirmButtonText: 'Ya, Hapus Draft!', cancelButtonText: 'Batal'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                const form = $(`<form action="${baseUrl}/${penerimaanId}" method="POST" style="display:none;"><input type="hidden" name="_method" value="DELETE"><input type="hidden" name="_token" value="{{ csrf_token() }}"></form>`);
-                $('body').append(form);
-                form.submit();
-            }
-        });
-    });
-    @endif
-});
 </script>
 @endpush

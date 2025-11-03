@@ -71,13 +71,9 @@ class GudangOrderController extends Controller
         $order = GudangOrder::with('details')->findOrFail($id);
         
         $user = Auth::user();
-        $isSuperAdmin = ($user->role_id == 1);
-        $accessibleWarehouses = $user->warehouse_access ?? [];
-        if ($isSuperAdmin) {
-            $warehouses = Warehouse::all();
-        } else {
-            $warehouses = Warehouse::whereIn('WARE_Auto', $accessibleWarehouses)->get();
-        }
+        
+        // SEMUA AKUN BISA AKSES SEMUA GUDANG
+        $warehouses = Warehouse::all(); // Ambil semua tanpa filter
 
         return view('mutasigudang.gudangorder.index', compact('order', 'warehouses'));
     }

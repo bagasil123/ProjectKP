@@ -63,6 +63,8 @@ use App\Http\Controllers\TestController;
 |
 */
 
+Route::get('warehouse/get-all', [WarehouseController::class, 'getAll'])->name('warehouse.getAll');
+
 // Frontend Routes
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/about', [HomeController::class, 'about'])->name('about');
