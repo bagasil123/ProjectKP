@@ -257,37 +257,59 @@ class TerimaGudangController extends Controller
         return response()->json($data);
     }
     
-    /**
-     * (HELPER BARU)
-     * Menambah/membuat stok di gudang tujuan
-     */
     private function addStockToWarehouse($prodCode, $warehouseId, $qty)
     {
         if ($qty <= 0) return;
 
-        // 1. Cari stok produk di gudang TUJUAN
-        $stock = Dtproduk::where('kode_produk', $prodCode)
-                           ->where('WARE_Auto', $warehouseId)
-                           ->first();
-                           
-        if ($stock) {
-            // 2. Jika sudah ada, tambahkan stoknya
-            $stock->stok += $qty;
-            $stock->save();
-        } else {
-            // 3. Jika belum ada, buat baris stok baru
-            // (Kita perlu mengambil data produk dari gudang lain sebagai template)
-            $productTemplate = Dtproduk::where('kode_produk', $prodCode)->first();
+        DB::beginTransaction();
+        try {
+            Log::info("Adding stock: Product {$prodCode}, Warehouse {$warehouseId}, Qty {$qty}");
+
+            // 1. Cari stok produk di gudang TUJUAN
+            $stock = Dtproduk::where('kode_produk', $prodCode)
+                            ->where('WARE_Auto', $warehouseId)
+                            ->lockForUpdate() // Lock untuk prevent race condition
+                            ->first();
+                            
+            if ($stock) {
+                // 2. Jika sudah ada, tambahkan stoknya - GUNAKAN 'qty' BUKAN 'stok'
+                $oldQty = $stock->qty;
+                $stock->qty += $qty;
+                $stock->save();
+                
+                Log::info("Stock updated: {$prodCode} in warehouse {$warehouseId} from {$oldQty} to {$stock->qty}");
+            } else {
+                // 3. Jika belum ada, buat baris stok baru
+                // Ambil data produk dari gudang lain sebagai template
+                $productTemplate = Dtproduk::where('kode_produk', $prodCode)->first();
+                
+                if (!$productTemplate) {
+                    throw new Exception("Produk dengan kode {$prodCode} tidak ditemukan di sistem.");
+                }
+                
+                $newStock = Dtproduk::create([
+                    'kode_produk' => $prodCode,
+                    'nama_produk' => $productTemplate->nama_produk,
+                    'supplier_id' => $productTemplate->supplier_id,
+                    'qty' => $qty, // ✅ GUNAKAN 'qty' BUKAN 'stok'
+                    'harga_beli' => $productTemplate->harga_beli,
+                    'harga_jual' => $productTemplate->harga_jual,
+                    'WARE_Auto' => $warehouseId,
+                    // Tambahkan field lain jika diperlukan
+                    'kelompok' => $productTemplate->kelompok,
+                    'satuan' => $productTemplate->satuan,
+                ]);
+                
+                Log::info("New stock created: {$prodCode} in warehouse {$warehouseId} with qty {$qty}");
+            }
+
+            DB::commit();
             
-            Dtproduk::create([
-                'kode_produk' => $prodCode,
-                'nama_produk' => $productTemplate->nama_produk ?? 'N/A',
-                'kelompok' => $productTemplate->kelompok ?? null,
-                'satuan' => $productTemplate->satuan ?? 'PCS',
-                'harga_jual' => $productTemplate->harga_jual ?? 0,
-                'WARE_Auto' => $warehouseId, // ID Gudang Tujuan
-                'stok' => $qty, // Stok awal
-            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Failed to add stock: " . $e->getMessage());
+            throw $e; // Re-throw agar transaction utama juga rollback
         }
     }
+
 }

@@ -239,23 +239,29 @@ $(document).ready(function() {
 
         $.ajax({
             url: `${baseUrl}/get-transfer-details/${transferId}`, type: 'GET',
+            // Di dalam success function AJAX getTransferDetails
             success: function(response) {
                 $('#Rcv_From').val(response.Trx_WareCode);
                 $('#Rcv_WareCode').val(response.Trx_RcvNo);
                 const tableBody = $('#detailTableBody');
                 tableBody.empty();
+                
                 if (response.details && response.details.length > 0) {
                     response.details.forEach(function(item, index) {
+                        // PERBAIKAN: Gunakan fallback untuk nama produk
+                        const productName = item.produk?.nama_produk || item.trx_prodname || item.Trx_ProdCode;
+                        const productUom = item.trx_uom || item.produk?.satuan || 'PCS';
                         const subtotal = (parseFloat(item.Trx_QtyTrx) * parseFloat(item.trx_cogs)).toFixed(2);
+                        
                         const rowHtml = `
                             <tr>
                                 <td>${item.Trx_ProdCode}</td>
-                                <td>${item.trx_prodname}
+                                <td>${productName}
                                     <input type="hidden" name="details[${index}][Rcv_ProdCode]" value="${item.Trx_ProdCode}">
-                                    <input type="hidden" name="details[${index}][Rcv_prodname]" value="${item.trx_prodname}">
+                                    <input type="hidden" name="details[${index}][Rcv_prodname]" value="${productName}">
                                     <input type="hidden" name="details[${index}][Rcv_cogs]" class="detail-cogs" value="${item.trx_cogs}">
                                 </td>
-                                <td>${item.trx_uom}<input type="hidden" name="details[${index}][Rcv_uom]" value="${item.trx_uom}"></td>
+                                <td>${productUom}<input type="hidden" name="details[${index}][Rcv_uom]" value="${productUom}"></td>
                                 <td class="text-end detail-qty-sent-display">${item.Trx_QtyTrx}<input type="hidden" name="details[${index}][Rcv_Qty_Sent]" value="${item.Trx_QtyTrx}"></td>
                                 <td><input type="number" name="details[${index}][Rcv_Qty_Received]" class="form-control text-end detail-calc detail-qty-received" value="${item.Trx_QtyTrx}" min="0" max="${item.Trx_QtyTrx}"></td>
                                 <td><input type="number" name="details[${index}][Rcv_Qty_Rejected]" class="form-control text-end detail-calc detail-qty-rejected" value="0" min="0" max="${item.Trx_QtyTrx}"></td>

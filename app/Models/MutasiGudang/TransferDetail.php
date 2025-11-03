@@ -47,4 +47,14 @@ class TransferDetail extends Model
         // 3. Local Key (di tabel ini, td_slsgt): 'Trx_ProdCode'
         return $this->hasOne(Dtproduk::class, 'kode_produk', 'Trx_ProdCode');
     }
+
+        public function getNamaProdukAttribute()
+    {
+        return $this->produk->nama_produk ?? $this->trx_prodname ?? $this->Trx_ProdCode;
+    }
+
+    public function getSatuanAmanAttribute()
+    {
+        return $this->trx_uom ?? $this->produk->satuan ?? 'PCS';
+    }
 }

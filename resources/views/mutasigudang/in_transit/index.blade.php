@@ -31,7 +31,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($inTransitTransfers as $transfer)
+                            @forelse ($inTransitTransfers as $transfer)
                                 <tr>
                                     <td><strong>{{ $transfer->trx_number ?? 'N/A' }}</strong></td>
                                     <td>
@@ -48,23 +48,43 @@
                                             <ul class="mb-0 pl-3">
                                                 @foreach($transfer->details as $detail)
                                                     <li>
-                                                        {{ $detail->produk->nama_produk ?? $detail->trx_prodname ?? $detail->Trx_ProdCode }} 
-                                                        ({{ $detail->Trx_QtyTrx }} {{ $detail->trx_uom ?? 'PCS' }})
+                                                        {{-- PERBAIKAN: Gunakan fallback yang aman --}}
+                                                        @if($detail->produk && $detail->produk->nama_produk)
+                                                            {{ $detail->produk->nama_produk }}
+                                                        @elseif($detail->trx_prodname)
+                                                            {{ $detail->trx_prodname }}
+                                                        @else
+                                                            {{ $detail->Trx_ProdCode }}
+                                                        @endif
+                                                        ({{ $detail->Trx_QtyTrx }} 
+                                                        {{-- PERBAIKAN: Gunakan fallback untuk satuan --}}
+                                                        @if($detail->trx_uom)
+                                                            {{ $detail->trx_uom }}
+                                                        @elseif($detail->produk && $detail->produk->satuan)
+                                                            {{ $detail->produk->satuan }}
+                                                        @else
+                                                            PCS
+                                                        @endif
+                                                        )
                                                     </li>
                                                 @endforeach
                                             </ul>
                                         @else
-                                            <span class="text-muted">Tidak ada detail</span>
+                                            <span class="text-muted">Tidak ada detail barang</span>
                                         @endif
                                     </td>
                                     <td class="text-end fw-bold">
-                                        {{ $transfer->details ? $transfer->details->sum('Trx_QtyTrx') : 0 }}
+                                        {{ $transfer->details->sum('Trx_QtyTrx') }}
                                     </td>
                                     <td class="text-end fw-bold">
                                         {{ number_format($transfer->netto_from_permintaan ?? 0, 2) }}
                                     </td>
                                 </tr>
-                            @endforeach
+                            @empty
+                                <tr>
+                                    <td colspan="7" class="text-center">Tidak ada barang dalam perjalanan saat ini.</td>
+                                </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>

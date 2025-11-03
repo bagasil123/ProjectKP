@@ -2,3 +2,4 @@
 [2025-11-03 21:55:44] local.INFO: User: , Role: 1  
 [2025-11-03 21:55:44] local.INFO: Accessible Warehouses: ["0"]  
 [2025-11-03 21:55:44] local.INFO: Found transfers: 6  
+[2025-11-03 22:27:53] local.ERROR: Gagal simpan penerimaan: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'Rcv_UserID' in 'field list' (Connection: mysql, SQL: insert into `th_slsgtrcv` (`Rcv_number`, `ref_trx_auto`, `Rcv_UserID`, `Rcv_Date`, `Rcv_WareCode`, `Rcv_From`, `Rcv_Note`, `rcv_posting`, `updated_at`, `created_at`) values (RCV-031125001, 10, 1, 2025-11-03, Gudang Cabang, Gudang Utama, ?, T, 2025-11-03 22:27:53, 2025-11-03 22:27:53))  
