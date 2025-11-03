@@ -8,11 +8,11 @@ use App\Models\MutasiGudang\TerimaGudangHeader;
 use App\Models\MutasiGudang\TerimaGudangDetail;
 use App\Models\MutasiGudang\TransferHeader;
 use App\Models\MutasiGudang\Warehouse; 
-use App\Models\Inventory\Dtproduk; // <-- TAMBAHKAN INI UNTUK UPDATE STOK
+use App\Models\Inventory\Dtproduk;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log; // <-- TAMBAHKAN INI
-use Exception; // <-- TAMBAHKAN INI
+use Illuminate\Support\Facades\Log;
+use Exception;
 
 class TerimaGudangController extends Controller
 {
@@ -26,14 +26,6 @@ class TerimaGudangController extends Controller
         $query = \App\Models\MutasiGudang\TerimaGudangHeader::with('transferHeader');
 
         if (!$isSuperAdmin) {
-            // (PERBAIKAN) Filter berdasarkan ID Gudang
-            // Ambil ID gudang yang bisa diakses dari transferHeader (Trx_RcvNo)
-            // atau dari terimaHeader (ref_trx_auto -> transferHeader.Trx_RcvNo)
-            
-            // Kita perlu mengambil ID gudang yang bisa diakses user
-            // $accessibleWarehouseIds = $accessibleWarehouses; // Ini sudah ID
-
-            // Ambil ID Transfer yang tujuannya bisa diakses user
             $accessibleTransferIds = TransferHeader::whereIn('Trx_RcvNo', $accessibleWarehouses)
                                                     ->pluck('Trx_Auto');
 
@@ -49,19 +41,15 @@ class TerimaGudangController extends Controller
     
     public function create()
     {
-        // SEMUA AKUN BISA AKSES SEMUA GUDANG
-        $warehouses = Warehouse::all(); // Ambil semua gudang tanpa filter
+        $warehouses = Warehouse::all();
         
         $user = Auth::user();
         $isSuperAdmin = ($user->role_id == 1);
         $accessibleWarehouses = $user->warehouse_access ?? [];
-
-        // Ambil daftar transfer yang bisa dipilih
         $transferQuery = TransferHeader::where('trx_posting', 'T')
-            ->whereDoesntHave('penerimaan'); // Hanya yg belum diterima
+            ->whereDoesntHave('penerimaan');
                 
         if (!$isSuperAdmin) {
-            // Tapi untuk transfer, tetap filter berdasarkan akses
             $transferQuery->whereIn('Trx_RcvNo', $accessibleWarehouses);
         }
 
@@ -76,11 +64,7 @@ class TerimaGudangController extends Controller
     public function edit($id)
     {
         $penerimaan = TerimaGudangHeader::with('details')->findOrFail($id);
-
-        // SEMUA AKUN BISA AKSES SEMUA GUDANG
-        $warehouses = Warehouse::all(); // Ambil semua gudang tanpa filter
-        
-        // Ambil SEMUA transfer posted
+        $warehouses = Warehouse::all();
         $postedTransfers = TransferHeader::where('trx_posting', 'T')->get();
 
         return view('mutasigudang.terimagudang.index', compact('penerimaan', 'postedTransfers', 'warehouses'));
@@ -98,7 +82,6 @@ class TerimaGudangController extends Controller
 
         DB::beginTransaction();
         try {
-            // ... (Logika generate Rcv_number Anda sudah benar) ...
             $transactionDate = new \DateTime($request->Rcv_Date);
             $lastPenerimaanToday = TerimaGudangHeader::whereDate('Rcv_Date', $transactionDate->format('Y-m-d'))
                                                     ->latest('id')
@@ -111,11 +94,7 @@ class TerimaGudangController extends Controller
             $datePart = $transactionDate->format('dmy');
             $sequencePart = str_pad($nextSequence, 3, '0', STR_PAD_LEFT);
             $newRcvNumber = 'RCV-' . $datePart . $sequencePart;
-            // ... (Akhir logika Rcv_number) ...
-
             $isPosting = $request->input('action') === 'save_post';
-
-            // Ambil data transfer untuk dapat ID gudang tujuan
             $transfer = TransferHeader::findOrFail($request->ref_trx_auto);
             $destinationWarehouseId = $transfer->Trx_RcvNo;
 
@@ -124,14 +103,12 @@ class TerimaGudangController extends Controller
                 'ref_trx_auto' => $request->ref_trx_auto,
                 'Rcv_UserID' => Auth::id(), 
                 'Rcv_Date' => $request->Rcv_Date,
-                // (PERBAIKAN) Simpan NAMA gudang, sesuai model TerimaGudang
                 'Rcv_WareCode' => $transfer->gudangPenerima->WARE_Name ?? null, 
                 'Rcv_From'     => $transfer->gudangPengirim->WARE_Name ?? null,
                 'Rcv_Note' => $request->Rcv_Note,
                 'rcv_posting' => $isPosting ? 'T' : 'F', 
             ]);
 
-            // Simpan detail
             foreach ($request->details as $item) {
                 TerimaGudangDetail::create([
                     'terima_gudang_id' => $header->id,
@@ -145,7 +122,6 @@ class TerimaGudangController extends Controller
                     'Rcv_subtotal' => ($item['Rcv_Qty_Received'] * $item['Rcv_cogs']),
                 ]);
 
-                // (LOGIKA BARU) Jika di-posting, tambahkan stok ke gudang tujuan
                 if ($isPosting && $item['Rcv_Qty_Received'] > 0) {
                     $this->addStockToWarehouse(
                         $item['Rcv_ProdCode'],
@@ -183,21 +159,17 @@ class TerimaGudangController extends Controller
         DB::beginTransaction();
         try {
             $isPosting = $request->input('action') === 'save_post';
-            
-            // Dapatkan ID gudang tujuan dari transfer yang terhubung
             $destinationWarehouseId = $header->transferHeader->Trx_RcvNo;
             if (!$destinationWarehouseId) {
                 throw new Exception("Gagal menemukan gudang tujuan dari referensi transfer.");
             }
 
-            // Update header
             $header->update([
                 'Rcv_Date' => $request->Rcv_Date,
                 'Rcv_Note' => $request->Rcv_Note,
                 'rcv_posting' => $isPosting ? 'T' : 'F',
             ]);
 
-            // Hapus detail lama, lalu buat yang baru dari request
             $header->details()->delete();
             foreach ($request->details as $item) {
                 TerimaGudangDetail::create([
@@ -212,7 +184,6 @@ class TerimaGudangController extends Controller
                     'Rcv_subtotal' => ($item['Rcv_Qty_Received'] * $item['Rcv_cogs']),
                 ]);
 
-                // (LOGIKA BARU) Jika di-posting, tambahkan stok ke gudang tujuan
                 if ($isPosting && $item['Rcv_Qty_Received'] > 0) {
                     $this->addStockToWarehouse(
                         $item['Rcv_ProdCode'],
@@ -264,7 +235,6 @@ class TerimaGudangController extends Controller
                 return response()->json(['error' => 'Transfer tidak ditemukan'], 404);
             }
 
-            // DEBUG: Cek data relasi
             Log::info("Transfer found: {$transfer->trx_number}");
             Log::info("Gudang Pengirim ID: {$transfer->Trx_WareCode}");
             Log::info("Gudang Penerima ID: {$transfer->Trx_RcvNo}");
@@ -280,7 +250,6 @@ class TerimaGudangController extends Controller
 
             $data = $transfer->toArray();
             
-            // Pastikan nama gudang terbaca
             $data['Trx_WareCode_name'] = $transfer->gudangPengirim->WARE_Name ?? 'N/A';
             $data['Trx_RcvNo_name'] = $transfer->gudangPenerima->WARE_Name ?? 'N/A';
 
@@ -292,10 +261,6 @@ class TerimaGudangController extends Controller
         }
     }
         
-    /**
- * (PERBAIKAN) Menambah/membuat stok di gudang tujuan
- * Dengan composite key: kode_produk + WARE_Auto
- */
     private function addStockToWarehouse($prodCode, $warehouseId, $qty)
     {
         if ($qty <= 0) return;
@@ -303,23 +268,18 @@ class TerimaGudangController extends Controller
         DB::beginTransaction();
         try {
             Log::info("Adding stock: Product {$prodCode}, Warehouse {$warehouseId}, Qty {$qty}");
-
-            // 1. Cari stok produk di gudang TUJUAN dengan composite key
             $stock = Dtproduk::where('kode_produk', $prodCode)
                             ->where('WARE_Auto', $warehouseId)
                             ->lockForUpdate()
                             ->first();
                             
             if ($stock) {
-                // 2. Jika sudah ada, tambahkan stoknya
                 $oldQty = $stock->qty;
                 $stock->qty += $qty;
                 $stock->save();
                 
                 Log::info("Stock updated: {$prodCode} in warehouse {$warehouseId} from {$oldQty} to {$stock->qty}");
             } else {
-                // 3. Jika belum ada, buat baris stok baru
-                // Ambil data produk dari gudang lain sebagai template
                 $productTemplate = Dtproduk::where('kode_produk', $prodCode)->first();
                 
                 if (!$productTemplate) {
@@ -333,7 +293,7 @@ class TerimaGudangController extends Controller
                     'qty' => $qty,
                     'harga_beli' => $productTemplate->harga_beli,
                     'harga_jual' => $productTemplate->harga_jual,
-                    'WARE_Auto' => $warehouseId, // INI YANG MEMBEDAKAN
+                    'WARE_Auto' => $warehouseId,
                     'kelompok' => $productTemplate->kelompok,
                     'satuan' => $productTemplate->satuan,
                 ]);

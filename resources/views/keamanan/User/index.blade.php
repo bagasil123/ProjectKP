@@ -97,7 +97,7 @@
                                 <option value="">-- Pilih Role --</option>
                                 @foreach ($roles as $role)
                                     <option value="{{ $role->id }}" 
-                                            data-role-name="{{ $role->name }}" {{-- Atribut ini penting untuk JS --}}
+                                            data-role-name="{{ $role->name }}"
                                             {{ old('role_id', $memberToEdit->role_id ?? '') == $role->id ? 'selected' : '' }}>
                                         {{ $role->name }}
                                     </option>
@@ -242,18 +242,14 @@
 @endsection
 
 @push('scripts')
-{{-- Link untuk Select2 --}}
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/@ttskch/select2-bootstrap4-theme@1.5.2/dist/select2-bootstrap4.min.css" rel="stylesheet" /> 
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script> 
-
-{{-- Link untuk moment.js (dipakai oleh select2) dan parsley.js (dipakai oleh form) --}}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/parsleyjs@2.9.2/dist/parsley.min.js"></script> 
 
 
 <script>
-    // Data yang dilewatkan dari Laravel ke JavaScript
     const allRolesData = @json($roles);
     const simplifiedAccesses = @json($simplifiedAccesses); 
     const isEditMode = {{ isset($memberToEdit) ? 'true' : 'false' }};
@@ -262,12 +258,9 @@
     const allWarehouses = @json($data['warehouses'] ?? $warehouses ?? []);
     const memberWarehouses = @json(old('warehouses', $memberWarehouses ?? [])); 
 
-    /**
-     * Membuat template HTML untuk satu baris dropdown gudang.
-     */
     const warehouseRowTemplate = (selectedId = '') => {
         let options = allWarehouses.map(wh => {
-            if (!wh) return ''; // Pengaman jika ada data null
+            if (!wh) return ''; 
             
             const code = wh.WARE_Auto || 'N/A';
             const name = wh.WARE_Name || 'N/A';
@@ -278,9 +271,6 @@
                     isDisabled = true;
                 }
             });
-            // ===================================================================
-            // BLOK DUPLIKAT YANG MENYEBABKAN ERROR TELAH DIHAPUS DARI SINI
-            // ===================================================================
 
             return `<option value="${code}" 
                         ${selectedId == code ? 'selected' : ''} 
@@ -305,9 +295,7 @@
         </div>`;
     };
 
-    /**
-     * Mengupdate opsi di semua dropdown gudang agar tidak bisa dipilih duplikat.
-     */
+
     function updateWarehouseSelectOptions() {
         const selectedValues = [];
         document.querySelectorAll('.warehouse-select').forEach(select => {
@@ -324,9 +312,7 @@
         });
     }
 
-    /**
-     * Mengisi input Nama Pengguna dan Password berdasarkan pilihan Karyawan dari Select2.
-     */
+
     function populateUserDataFromSelect2(data) {
         const userNameInput = document.getElementById('Mem_UserName');
         const passwordInput = document.getElementById('mem_password');
@@ -354,9 +340,7 @@
         }
     }
 
-    /**
-     * Mengatur visibilitas bagian hak akses dan gudang.
-     */
+
     function toggleAccessSection(selectedRoleId) {
         const userAccessSection = document.getElementById('userAccessSection');
         const selectedRoleNameDisplay = document.getElementById('selectedRoleNameDisplay');
@@ -364,11 +348,8 @@
         const aksesUbahCheckbox = document.getElementById('akses_role_ubah');
         const aksesHapusCheckbox = document.getElementById('akses_role_hapus');
         const oldAksesRoleData = @json(old('akses_role', []));
-
-        // Logika untuk Gudang
         const warehouseAccessSection = document.getElementById('warehouse-access-section');
         const warehouseListContainer = document.getElementById('warehouse-list-container');
-        // Ambil nama role dari data-attribute
         const selectedRoleName = $(`#role_id option[value="${selectedRoleId}"]`).data('role-name');
         
         if (selectedRoleId) {
@@ -377,7 +358,6 @@
             const selectedRole = allRolesData.find(role => role.id == selectedRoleId);
             selectedRoleNameDisplay.textContent = selectedRole ? selectedRole.name : 'N/A';
 
-            // Logika checkbox hak akses
             let isTambah = false, isUbah = false, isHapus = false;
             if (oldAksesRoleData[selectedRoleId]) {
                 isTambah = oldAksesRoleData[selectedRoleId].tambah === '1';
@@ -395,10 +375,6 @@
             aksesUbahCheckbox.name = `akses_role[${selectedRoleId}][ubah]`;
             aksesHapusCheckbox.name = `akses_role[${selectedRoleId}][hapus]`;
 
-            // ===================================================================
-            // Cek nama Role. Pastikan 'Admin Gudang' adalah nama yang
-            // benar-benar ada di database Anda
-            // ===================================================================
             if (selectedRoleName === 'Admin Gudang') { 
                 warehouseAccessSection.style.display = 'block';
                 if (warehouseListContainer.children.length === 0) {
@@ -406,12 +382,10 @@
                 }
             } else {
                 warehouseAccessSection.style.display = 'none';
-                warehouseListContainer.innerHTML = ''; // Kosongkan
+                warehouseListContainer.innerHTML = '';
             }
-            // ===================================================================
 
         } else {
-            // Sembunyikan semua jika tidak ada role dipilih
             userAccessSection.classList.add('d-none');
             selectedRoleNameDisplay.textContent = '';
             
@@ -427,9 +401,6 @@
         }
     }
 
-    /**
-     * Mereset form ke mode "Buat Baru".
-     */
     function resetForm() {
         document.getElementById('memberForm').reset();
         document.getElementById('memberForm').action = "{{ route('keamanan.member.store') }}";
@@ -450,7 +421,6 @@
         document.getElementById('role_id').value = '';
         toggleAccessSection('');
         
-        // Sembunyikan tombol "Buat Baru"
         const createNewButton = document.querySelector('a.btn-secondary');
         if (createNewButton) {
             createNewButton.style.display = 'none';
@@ -462,9 +432,6 @@
         history.pushState(null, '', '{{ route('keamanan.member.index') }}');
     }
 
-    /**
-     * Inisialisasi Select2 untuk Karyawan
-     */
     function initSelect2() {
         if ($('#Mem_ID').hasClass('select2-hidden-accessible')) {
             $('#Mem_ID').select2('destroy');
@@ -540,14 +507,9 @@
         }
     }
 
-    // ===================================================================
-    // Eksekusi saat Dokumen Siap
-    // ===================================================================
     $(document).ready(function() {
         
         $('#dataTable').DataTable();
-        
-        // Notifikasi SweetAlert
         @if(session('success'))
             Swal.fire({ icon: 'success', title: 'Sukses', text: '{{ session('success') }}', timer: 3000, showConfirmButton: false });
         @endif
@@ -563,19 +525,17 @@
             });
         @endif
 
-        // Inisialisasi
+
         initSelect2();
 
-        // Inisialisasi bagian Hak Akses dan Gudang saat halaman dimuat
         const roleIdSelect = document.getElementById('role_id');
         if (roleIdSelect && roleIdSelect.value) {
             toggleAccessSection(roleIdSelect.value);
 
             const selectedRoleName = $(`#role_id option[value="${roleIdSelect.value}"]`).data('role-name');
-            // Pastikan 'Admin Gudang' adalah nama yang benar
             if (selectedRoleName === 'Admin Gudang' && memberWarehouses.length > 0) {
                 const warehouseListContainer = document.getElementById('warehouse-list-container');
-                warehouseListContainer.innerHTML = ''; // Kosongkan dulu
+                warehouseListContainer.innerHTML = ''; 
                 memberWarehouses.forEach(whId => {
                     warehouseListContainer.insertAdjacentHTML('beforeend', warehouseRowTemplate(whId));
                 });
@@ -585,12 +545,10 @@
             document.getElementById('userAccessSection').classList.add('d-none');
         }
 
-        // Event listener saat Role diganti
         $('#role_id').on('change', function() {
             toggleAccessSection(this.value);
         });
 
-        // Event listener untuk tombol Show/Hide Password
         $('.toggle-password').click(function() {
             const input = $(this).closest('.input-group').find('input');
             const icon = $(this).find('i');
@@ -603,7 +561,6 @@
             }
         });
 
-        // Event listener untuk tombol Hapus
         $('.delete-btn').click(function() {
             const form = $(this).closest('form');
             Swal.fire({
@@ -622,7 +579,6 @@
             });
         });
 
-        // Inisialisasi Validasi Parsley
         $('#memberForm').parsley({
             errorClass: 'is-invalid',
             successClass: 'is-valid',
@@ -630,23 +586,16 @@
             errorTemplate: '<span></span>'
         });
 
-        // ===================================================================
-        // Event Listener untuk Gudang
-        // ===================================================================
-        
-        // Tombol Tambah Gudang (+)
         $('#add-warehouse-btn').on('click', function() {
             $('#warehouse-list-container').append(warehouseRowTemplate());
             updateWarehouseSelectOptions();
         });
 
-        // Tombol Hapus Gudang (Trash)
         $('#warehouse-list-container').on('click', '.remove-warehouse-btn', function() {
             $(this).closest('.warehouse-row').remove();
             updateWarehouseSelectOptions();
         });
 
-        // Saat memilih gudang, update dropdown lainnya
         $('#warehouse-list-container').on('change', '.warehouse-select', function() {
             updateWarehouseSelectOptions();
         });

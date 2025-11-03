@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Collection;
 use App\Models\MutasiGudang\GudangOrderDetail;
-use Illuminate\Database\Eloquent\Casts\Attribute; // Penting untuk Laravel 9+
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
 
 class GudangOrder extends Model

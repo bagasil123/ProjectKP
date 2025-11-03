@@ -2,7 +2,6 @@
 @section('main-content')
 
 <div class="container-fluid">
-    {{-- TAMPILAN DAFTAR PERMINTAAN (INDEX) --}}
     @if(isset($orders))
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
@@ -72,7 +71,6 @@
         </div>
     </div>
 
-    {{-- TAMPILAN FORM (CREATE / EDIT / SHOW) --}}
     @elseif(isset($order))
     <div class="d-flex justify-content-end mb-2">
         <a href="{{ route('gudangorder.index') }}" class="btn btn-secondary"><i class="fa fa-arrow-left"></i> Kembali ke Daftar</a>
@@ -124,7 +122,6 @@
         </div>
     </div>
 
-    {{-- TOMBOL AKSI (Hanya muncul jika status DRAFT) --}}
     @if($order->pur_status === 'draft')
     <div class="mb-3 d-flex">
         <button type="button" class="btn btn-primary mr-2" data-bs-toggle="modal" data-bs-target="#detailModal">
@@ -139,7 +136,6 @@
     </div>
     @endif
 
-    {{-- TABEL DETAIL BARANG --}}
     <div class="card shadow mb-4">
     <div class="card-header py-3">
         <h6 class="m-0 font-weight-bold text-primary">Detail Barang</h6>
@@ -183,7 +179,6 @@
                     </tr>
                     @empty
                     <tr>
-                        {{-- Ubah colspan menjadi 9 --}}
                         <td colspan="9" class="text-center font-italic">Belum ada barang yang ditambahkan.</td>
                     </tr>
                     @endforelse
@@ -193,7 +188,6 @@
     </div>
 </div>
 
-    {{-- MODAL UNTUK TAMBAH BARANG (Hanya bisa jika status DRAFT) --}}
     @if($order->pur_status === 'draft')
     <div class="modal fade" id="detailModal" tabindex="-1" aria-labelledby="detailModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -204,25 +198,18 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        {{-- KIRIM Pur_Auto (ID Header) KE CONTROLLER --}}
                         <input type="hidden" name="Pur_Auto" value="{{ $order->Pur_Auto }}">
-                        
                         <div class="row">
-                            {{-- (PERBAIKAN) KODE PRODUK: Menjadi <select> --}}
                             <div class="col-md-6 mb-3">
                                 <label for="Pur_ProdCode" class="form-label">Kode Produk</label>
                                 <select name="Pur_ProdCode" id="Pur_ProdCode" class="form-control product-select" required>
                                     <option value="">Pilih Gudang Pengirim di Halaman Utama</option>
                                 </select>
                             </div>
-                            
-                            {{-- (PERBAIKAN) NAMA PRODUK: Menjadi readonly --}}
                             <div class="col-md-6 mb-3">
                                 <label for="pur_prodname" class="form-label">Nama Produk</label>
                                 <input type="text" name="pur_prodname" id="pur_prodname" class="form-control" required readonly>
                             </div>
-
-                            {{-- (NAMA KOLOM INI SUDAH BENAR SESUAI MODEL DETAIL ANDA) --}}
                             <div class="col-md-6 mb-3">
                                 <label for="Pur_UOM" class="form-label">Satuan</label>
                                 <select name="Pur_UOM" id="Pur_UOM" class="form-control" required>
@@ -236,8 +223,6 @@
                                 <label for="Pur_Qty" class="form-label">Qty</label>
                                 <input type="number" id="Pur_Qty" name="Pur_Qty" class="form-control detail-calc" step="1" min="1" required>
                             </div>
-
-                            {{-- (NAMA KOLOM INI SUDAH BENAR SESUAI MODEL DETAIL ANDA) --}}
                             <div class="col-md-4 mb-3">
                                 <label for="Pur_GrossPrice" class="form-label">Harga</label>
                                 <input type="number" id="Pur_GrossPrice" name="Pur_GrossPrice" class="form-control detail-calc" step="0.01" min="0" required readonly>
@@ -250,8 +235,6 @@
                                 <label for="Pur_Taxes" class="form-label">Pajak</label>
                                 <input type="number" id="Pur_Taxes" name="Pur_Taxes" class="form-control detail-calc" step="0.01" min="0" value="0">
                             </div>
-
-                            {{-- (NAMA KOLOM INI SUDAH BENAR SESUAI MODEL DETAIL ANDA) --}}
                             <div class="col-12 mb-3">
                                 <label for="Pur_NettPrice" class="form-label">Nominal (Harga Bersih)</label>
                                 <input type="number" id="Pur_NettPrice" name="Pur_NettPrice" class="form-control" readonly>
@@ -268,7 +251,7 @@
     </div>
         @endif
 
-    @endif {{-- Menutup blok @if/@elseif utama --}}
+    @endif
 
 </div>
 @endsection
@@ -278,15 +261,12 @@
 <script>
 $(document).ready(function() {
     $('#dataTable').DataTable();
-
-    // Setup CSRF Token
     $.ajaxSetup({
         headers: {
             'X-CSRF-TOKEN': '{{ csrf_token() }}'
         }
     });
 
-    // Fungsi helper Toast
     function showToast(type, message) {
         const Toast = Swal.mixin({
             toast: true,
@@ -301,24 +281,20 @@ $(document).ready(function() {
         });
     }
 
-    // =================================================================
-    // LOGIKA UNTUK HALAMAN FORM (CREATE/EDIT)
-    // =================================================================
     @if(isset($order))
     
-    // --- Variabel Global ---
-    const orderId = '{{ $order->Pur_Auto }}'; // Gunakan PK yang benar
-    const baseUrl = `{{ url('/mutasigudang/gudangorder') }}`;
-    let availableProducts = []; // Cache untuk produk yang difilter
 
-    // --- (PERBAIKAN) Fungsi Kalkulasi Harga (menggunakan ID form) ---
+    const orderId = '{{ $order->Pur_Auto }}';
+    const baseUrl = `{{ url('/mutasigudang/gudangorder') }}`;
+    let availableProducts = []; 
+
     function calculateNetPrice() {
         const qty = parseFloat($('#Pur_Qty').val()) || 0;
         const price = parseFloat($('#Pur_GrossPrice').val()) || 0;
         const discount = parseFloat($('#Pur_Discount').val()) || 0;
         const taxes = parseFloat($('#Pur_Taxes').val()) || 0;
 
-        if (qty > 0) { // Harga bisa 0
+        if (qty > 0) {
             const subtotal = qty * price;
             const netPrice = (subtotal - discount) + taxes;
             $('#Pur_NettPrice').val(netPrice.toFixed(2));
@@ -335,13 +311,9 @@ $(document).ready(function() {
         $('#Pur_ProdCode').empty().append('<option value="">Pilih Gudang Pengirim dulu</option>');
     });
 
-
-    // --- (PERBAIKAN) Bagian 1: AJAX Filter Produk (URL sudah benar) ---
-    
-    // Pemicu saat 'Gudang Pengirim' (di halaman utama) diganti
     $('#from_warehouse_id').on('change', function() {
         var warehouseId = $(this).val();
-        var productDropdown = $('#Pur_ProdCode'); // Target dropdown di modal
+        var productDropdown = $('#Pur_ProdCode'); 
 
         if (!warehouseId) {
             productDropdown.empty().append('<option value="">Pilih Gudang Pengirim dulu</option>');
@@ -351,13 +323,12 @@ $(document).ready(function() {
 
         productDropdown.empty().append('<option value="">Memuat produk...</option>');
         
-        // Memanggil route dari file route Anda
         $.ajax({
             url: '{{ url('mutasigudang/get-products-by-warehouse') }}/' + warehouseId,
             type: 'GET',
             dataType: 'json',
             success: function(products) {
-                availableProducts = products; // Simpan di cache
+                availableProducts = products;
                 
                 productDropdown.empty().append('<option value="">Pilih Produk</option>');
                 if (products.length === 0) {
@@ -365,10 +336,6 @@ $(document).ready(function() {
                 }
 
                 $.each(products, function(key, product) {
-                    // (PENERJEMAHAN)
-                    // 'value' adalah 'kode_produk' dari Dtproduk
-                    // 'data-name' adalah 'nama_produk' dari Dtproduk
-                    // 'data-price' adalah 'harga_jual' dari Dtproduk
                     productDropdown.append(
                         '<option value="' + product.kode_produk + '" ' + 
                                 'data-name="' + product.nama_produk + '" ' +
@@ -386,7 +353,6 @@ $(document).ready(function() {
         });
     });
 
-    // Pemicu saat 'Tambah Barang' diklik (mengisi dropdown dari cache)
     $('button[data-bs-target="#detailModal"]').on('click', function() {
         var productDropdown = $('#Pur_ProdCode');
         if (availableProducts.length === 0) {
@@ -409,27 +375,16 @@ $(document).ready(function() {
         }
     });
 
-    // --- (PERBAIKAN) Bagian 2: Auto-fill (menggunakan ID form) ---
-    
-    // Pemicu saat produk di modal diganti
-    // 'id' di modal adalah 'Pur_ProdCode'
     $('#detailModal').on('change', '#Pur_ProdCode', function() {
         var selectedOption = $(this).find('option:selected');
         
         var price = selectedOption.data('price') || 0;
         var name = selectedOption.data('name') || '';
 
-        // (PENERJEMAHAN)
-        // 'pur_prodname' (form) diisi oleh data-name (nama_produk)
-        // 'Pur_GrossPrice' (form) diisi oleh data-price (harga_jual)
         $('#pur_prodname').val(name);
-        $('#Pur_GrossPrice').val(price).trigger('change'); // Trigger 'change' untuk kalkulasi
+        $('#Pur_GrossPrice').val(price).trigger('change'); 
     });
 
-
-    // --- Sisa Skrip Anda (Simpan Header, Simpan Detail, Hapus, etc) ---
-    
-    // 1. Simpan perubahan header
     $('#headerForm').on('change', 'input, textarea, select', function() {
         const data = $('#headerForm').serialize();
         $.ajax({
@@ -448,7 +403,6 @@ $(document).ready(function() {
         });
     });
 
-    // 2. Simpan detail barang baru
     $('#btnSaveDetail').on('click', function() {
         const data = $('#detailForm').serialize();
         $.ajax({
@@ -480,9 +434,8 @@ $(document).ready(function() {
         });
     });
 
-    // 3. Hapus detail barang
     $('#detailTable').on('click', '.delete-detail-btn', function() {
-        const detailId = $(this).data('id'); // PK dari detail (Pur_Det_Auto)
+        const detailId = $(this).data('id');
         Swal.fire({
             title: 'Hapus Barang Ini?',
             text: "Aksi ini tidak dapat dibatalkan!",
@@ -494,7 +447,6 @@ $(document).ready(function() {
         }).then((result) => {
             if (result.isConfirmed) {
                 $.ajax({
-                    // (PERBAIKAN) URL Hapus Detail (sesuai route Anda)
                     url: `${baseUrl}/${orderId}/details/${detailId}`,
                     type: 'POST', 
                     data: { _method: 'DELETE' },
@@ -509,7 +461,6 @@ $(document).ready(function() {
         });
     });
 
-    // 4. Submit seluruh permintaan
     $('#btnSubmitOrder').click(function() {
         const hasItems = $('#detailTable tbody tr').length > 0 && !$('#detailTable tbody td[colspan]').length;
         if (!hasItems) {
@@ -546,7 +497,6 @@ $(document).ready(function() {
         });
     });
 
-    // 5. Batalkan dan hapus draft
     $('#btnCancelDraft').click(function() {
         Swal.fire({
             title: 'Batalkan & Hapus Draft Ini?',
@@ -578,9 +528,6 @@ $(document).ready(function() {
     });
     
     @else 
-    // =================================================================
-    // LOGIKA HANYA UNTUK HALAMAN DAFTAR (INDEX)
-    // =================================================================
     
     $('#dataTable').on('click', '.delete-order-btn', function() {
         const orderId = $(this).data('id');

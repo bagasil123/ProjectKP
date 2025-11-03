@@ -141,11 +141,6 @@
 
                         <div class="form-group mb-2">
                             <label class="small mb-0">Gudang <span class="text-danger">*</span></label>
-                            
-                            {{-- 
-                            INI ADALAH PERBAIKANNYA: 
-                            name="WARE_Name" DIUBAH MENJADI name="WARE_Auto"
-                            --}}
                             <select id="WARE_Auto" name="WARE_Auto" class="form-control form-control-sm" required> 
                                 <option value="">Pilih Gudang</option>
                                 @foreach($warehouses as $warehouse)
@@ -174,38 +169,35 @@
 
 @push('styles')
 <style>
-    /* Atur vertikal tengah untuk semua sel */
     #dataTable th, 
     #dataTable td {
         vertical-align: middle !important;
     }
     
-    /* Atur horizontal alignment */
     #dataTable th {
         text-align: center;
     }
-    #dataTable td:nth-child(1), /* No */
-    #dataTable td:nth-child(2), /* Kode */
-    #dataTable td:nth-child(5), /* Gudang */
-    #dataTable td:nth-child(6), /* Qty */
-    #dataTable td:nth-child(7), /* Harga Beli */
-    #dataTable td:nth-child(8), /* Harga Jual */
-    #dataTable td:nth-child(9)  /* Aksi */ {
+    #dataTable td:nth-child(1), 
+    #dataTable td:nth-child(2), 
+    #dataTable td:nth-child(5), 
+    #dataTable td:nth-child(6), 
+    #dataTable td:nth-child(7), 
+    #dataTable td:nth-child(8), 
+    #dataTable td:nth-child(9)  {
         text-align: center;
     }
     
-    /* Handle teks panjang di nama produk dan supplier */
+
     #dataTable td:nth-child(3),
     #dataTable td:nth-child(4) {
         white-space: normal !important;
         word-wrap: break-word;
     }
     
-    /* Perbaikan tampilan untuk mobile */
     @media (max-width: 768px) {
         #dataTable td:nth-child(3),
         #dataTable td:nth-child(4),
-        #dataTable td:nth-child(5) { /* Terapkan juga ke Gudang */
+        #dataTable td:nth-child(5) {
             max-width: 150px;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -222,8 +214,6 @@ $(function() {
     const baseUrl = "{{ route('dataproduk.store') }}";
 
     $('#dataTable').DataTable();
-
-    // Reset & Open Add Modal
     $('#btnAddDataProduk').click(() => {
         form.trigger('reset');
         $('#modalTitle').text('Tambah Produk Baru');
@@ -234,7 +224,6 @@ $(function() {
         modal.modal('show');
     });
 
-    // Open Edit Modal
     $('#dataTable').on('click', '.edit-btn', function() {
         let btn = $(this);
         let id = btn.data('id');
@@ -244,7 +233,6 @@ $(function() {
         form.attr('action', `${baseUrl}/${id}`);
         form.find('input[name="_method"]').val('PUT');
 
-        // Populate form fields
         $('#id').val(id);
         $('#kode_produk').val(btn.data('kode'));
         $('#nama_produk').val(btn.data('nama'));
@@ -252,12 +240,11 @@ $(function() {
         $('#qty').val(btn.data('qty'));
         $('#harga_beli').val(btn.data('harga_beli'));
         $('#harga_jual').val(btn.data('harga_jual'));
-        $('#WARE_Auto').val(btn.data('warehouse')); // Ini sudah benar
+        $('#WARE_Auto').val(btn.data('warehouse')); 
 
         modal.modal('show');
     });
 
-    // Submit Form with AJAX (Tidak perlu diubah)
     form.on('submit', function(e) {
         e.preventDefault();
         $.ajax({
@@ -284,7 +271,6 @@ $(function() {
         });
     });
 
-    // Delete Product (Tidak perlu diubah)
     $('#dataTable').on('click', '.delete-btn', function() {
         let btn = $(this);
         let id = btn.data('id');

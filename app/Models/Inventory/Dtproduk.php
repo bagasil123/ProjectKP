@@ -30,9 +30,6 @@ class Dtproduk extends Model
         return $this->belongsTo(Supplier::class);
     }
 
-    /**
-     * Increase product quantity
-     */
     public function incrementStock($quantity)
     {
         $this->qty += $quantity;
@@ -40,9 +37,6 @@ class Dtproduk extends Model
         return $this;
     }
 
-    /**
-     * Decrease product quantity
-     */
     public function decrementStock($quantity)
     {
         $this->qty = max(0, $this->qty - $quantity);
@@ -50,9 +44,6 @@ class Dtproduk extends Model
         return $this;
     }
 
-    /**
-     * Update last purchase price
-     */
     public function updatePurchasePrice($price)
     {
         $this->harga_beli = $price;

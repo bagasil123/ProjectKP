@@ -33,18 +33,8 @@ class TransferDetail extends Model
         return $this->belongsTo(TransferHeader::class, 'Trx_Auto', 'Trx_Auto');
     }
 
-    /**
-     * (PERBAIKAN BESAR DI SINI)
-     * Kita ubah dari belongsTo menjadi hasOne.
-     * hasOne akan mengambil HANYA SATU baris produk yang cocok,
-     * yang menyelesaikan masalah 'kode_produk' yang tidak unik.
-     */
     public function produk()
     {
-        // Parameter:
-        // 1. Model tujuan: Dtproduk::class
-        // 2. Foreign Key (di tabel tujuan, dataproduk_tabel): 'kode_produk'
-        // 3. Local Key (di tabel ini, td_slsgt): 'Trx_ProdCode'
         return $this->hasOne(Dtproduk::class, 'kode_produk', 'Trx_ProdCode');
     }
 

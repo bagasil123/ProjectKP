@@ -71,8 +71,6 @@ class WarehouseController extends Controller
         }
     }
 
-
-    // Opsional: Untuk kebutuhan AJAX edit (jika pakai fetch)
     public function json($id)
     {
         $warehouse = Warehouse::findOrFail($id);

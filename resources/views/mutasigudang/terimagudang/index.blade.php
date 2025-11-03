@@ -2,10 +2,8 @@
 @section('main-content')
 
 <div class="container-fluid">
-    {{-- Judul Halaman --}}
     <h1 class="h3 mb-4 text-gray-800">{{ ('Penerimaan Gudang') }}</h1>
 
-    {{-- Alert dari Session --}}
     @if (session('success'))
         <div class="alert alert-success border-left-success alert-dismissible fade show" role="alert">
             {{ session('success') }}
@@ -22,9 +20,6 @@
         </div>
     @endif
 
-    {{-- ====================================================== --}}
-    {{-- KONDISI 1: MENAMPILKAN DAFTAR PENERIMAAN (LIST VIEW) --}}
-    {{-- ====================================================== --}}
     @if(isset($penerimaanList))
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
@@ -48,14 +43,12 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {{-- (PERBAIKAN) Gunakan $penerimaanList (dari controller) --}}
                         @forelse ($penerimaanList as $penerimaan)
                             <tr>
                                 <td><strong>{{ $penerimaan->Rcv_number }}</strong></td>
                                 <td>{{ \Carbon\Carbon::parse($penerimaan->Rcv_Date)->isoFormat('DD MMMM YYYY') }}</td>
                                 <td>{{ $penerimaan->Rcv_From ?? '-' }}</td>
                                 <td>{{ $penerimaan->Rcv_WareCode ?? '-' }}</td>
-                                {{-- Pastikan relasi 'transferHeader' ada di model TerimaGudangHeader --}}
                                 <td>{{ $penerimaan->transferHeader->trx_number ?? 'N/A' }}</td>
                                 <td class="text-center">
                                     <span class="badge badge-{{ $penerimaan->rcv_posting == 'F' ? 'warning' : 'success' }}">
@@ -67,7 +60,6 @@
                                         <a href="{{ route('terimagudang.edit', $penerimaan->id) }}" class="btn btn-sm btn-warning" title="Edit"><i class="fas fa-edit"></i></a>
                                         <button class="btn btn-sm btn-danger delete-draft-btn" data-id="{{ $penerimaan->id }}" title="Hapus Draft"><i class="fas fa-trash"></i></button>
                                     @else
-                                        {{-- (PERBAIKAN) Arahkan ke edit() juga untuk mode 'show' --}}
                                         <a href="{{ route('terimagudang.edit', $penerimaan->id) }}" class="btn btn-sm btn-info" title="Lihat"><i class="fas fa-eye"></i></a>
                                     @endif
                                 </td>
@@ -80,7 +72,6 @@
                     </tbody>
                 </table>
             </div>
-            {{-- (PERBAIKAN) Panggil pagination dari $penerimaanList --}}
             @if($penerimaanList->hasPages())
             <div class="d-flex justify-content-center">
                 {{ $penerimaanList->links() }}
@@ -89,10 +80,6 @@
         </div>
     </div>
 
-    {{-- ====================================================== --}}
-    {{-- KONDISI 2: MENAMPILKAN FORM CREATE / EDIT (FORM VIEW) --}}
-    {{-- ====================================================== --}}
-    {{-- (Kode ini Sudah Benar) --}}
     @elseif(isset($penerimaan))
     <div class="d-flex justify-content-end mb-2">
         <a href="{{ route('terimagudang.index') }}" class="btn btn-secondary"><i class="fa fa-arrow-left"></i> Kembali ke Daftar</a>
@@ -130,7 +117,6 @@
                     </div>
                     @endif
 
-                    {{-- (PERBAIKAN) Pastikan input ini ada (bisa hidden) jika readonly, agar datanya terkirim --}}
                     <div class="col-md-6 mb-3"><label for="Rcv_From">Gudang Pengirim (Asal)</label><input type="text" id="Rcv_From" name="Rcv_From" class="form-control" value="{{ $penerimaan->Rcv_From }}" readonly style="background-color: #e9ecef;"></div>
                     <div class="col-md-6 mb-3"><label for="Rcv_WareCode">Gudang Penerima (Tujuan)</label><input type="text" id="Rcv_WareCode" name="Rcv_WareCode" class="form-control" value="{{ $penerimaan->Rcv_WareCode }}" readonly style="background-color: #e9ecef;"></div>
                     
@@ -168,10 +154,8 @@
                                     @if($penerimaan->details && $penerimaan->details->count() > 0)
                                         @foreach($penerimaan->details as $index => $detail)
                                         <tr>
-                                            {{-- (PERBAIKAN) Gabungkan Kode dan Nama Produk --}}
                                             <td>{{ $detail->Rcv_ProdCode }}</td>
                                             <td>{{ $detail->Rcv_prodname }}
-                                                {{-- Input hidden untuk submit form --}}
                                                 <input type="hidden" name="details[{{$index}}][Rcv_ProdCode]" value="{{ $detail->Rcv_ProdCode }}">
                                                 <input type="hidden" name="details[{{$index}}][Rcv_prodname]" value="{{ $detail->Rcv_prodname }}">
                                                 <input type="hidden" name="details[{{$index}}][Rcv_cogs]" class="detail-cogs" value="{{ $detail->Rcv_cogs }}">
@@ -201,18 +185,14 @@
 
 
 @push('scripts')
-{{-- (Script JS Anda di file ini sudah benar) --}}
 <script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-// Function untuk load semua gudang (accessible by all users)
     function loadAllWarehouses() {
         $.ajax({
             url: '{{ route("warehouse.getAll") }}',
             type: 'GET',
             success: function(response) {
-                // Update dropdown gudang asal
                 $('#Trx_WareCode').empty().append('<option value="">-- Pilih Gudang --</option>');
-                // Update dropdown gudang tujuan  
                 $('#Trx_RcvNo').empty().append('<option value="">-- Pilih Gudang --</option>');
                 
                 response.forEach(function(warehouse) {
@@ -226,7 +206,6 @@
         });
     }
 
-    // Panggil saat halaman load
     $(document).ready(function() {
         loadAllWarehouses();
     });
@@ -255,7 +234,6 @@
         @if(isset($penerimaan))
         const baseUrl = '{{ url("/mutasigudang/terimagudang") }}';
 
-        // --- LOGIKA UTAMA: Ambil Data dari Transfer Gudang via AJAX ---
         $('#transfer_id').on('change', function() {
             const transferId = $(this).val();
             if (!transferId) {
@@ -267,12 +245,8 @@
 
             $.ajax({
                 url: `${baseUrl}/get-transfer-details/${transferId}`, type: 'GET',
-                // Di dalam success function AJAX getTransferDetails
-                // Di dalam success function AJAX getTransferDetails
                 success: function(response) {
-                    console.log("Transfer Response:", response); // Debug di browser console
-                    
-                    // PERBAIKAN: Gunakan field yang benar untuk nama gudang
+                    console.log("Transfer Response:", response);
                     const gudangAsal = response.Trx_WareCode_name || response.gudang_pengirim?.WARE_Name || 'N/A';
                     const gudangTujuan = response.Trx_RcvNo_name || response.gudang_penerima?.WARE_Name || 'N/A';
                     
@@ -318,19 +292,16 @@
             });
         });
 
-        // --- KALKULASI REAL-TIME & VALIDASI UNTUK FORM DETAIL ---
         function calculateRow(row) {
             const qtySent = parseFloat(row.find('.detail-qty-sent-display').text()) || 0;
             let qtyReceived = parseFloat(row.find('.detail-qty-received').val()) || 0;
             let qtyRejected = parseFloat(row.find('.detail-qty-rejected').val()) || 0;
             const cogs = parseFloat(row.find('.detail-cogs').val()) || 0;
 
-            // Validasi: Diterima + Ditolak tidak boleh > Dikirim
             if (qtyReceived + qtyRejected > qtySent) {
                 qtyRejected = qtySent - qtyReceived;
                 if (qtyRejected < 0) {
                     qtyRejected = 0;
-                    // (Opsional) Sesuaikan qtyReceived jika qtyRejected yang memicu
                     qtyReceived = qtySent;
                     row.find('.detail-qty-received').val(qtyReceived);
                 }
@@ -344,7 +315,6 @@
             calculateRow($(this).closest('tr'));
         });
 
-        // --- LOGIKA TOMBOL AKSI ---
         $('#btnSubmitPenerimaan').click(function(e) {
             e.preventDefault();
             const hasItems = $('#detailTableBody tr').length > 0 && !$('#detailTableBody td[colspan]').length;

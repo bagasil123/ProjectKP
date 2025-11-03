@@ -14,8 +14,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Exception;
-// Hapus 'Str' helper, kita tidak pakai itu lagi
-// use Illuminate\Support\Str; 
 
 class TransferGudangController extends Controller
 {
@@ -66,8 +64,7 @@ class TransferGudangController extends Controller
     {
         $user = Auth::user();
         
-        // SEMUA AKUN BISA AKSES SEMUA GUDANG
-        $warehouses = Warehouse::all(); // Ambil semua tanpa filter
+        $warehouses = Warehouse::all();
         
         $isSuperAdmin = ($user->role_id == 1);
         $accessibleWarehouses = $user->warehouse_access ?? [];
@@ -102,8 +99,8 @@ class TransferGudangController extends Controller
         
         $validatedData = $request->validate([
             'Trx_Date'      => 'required|date',
-            'Trx_WareCode'  => 'required|integer|exists:m_warehouse,WARE_Auto', // Validasi ID
-            'Trx_RcvNo'     => 'required|integer|exists:m_warehouse,WARE_Auto', // Validasi ID
+            'Trx_WareCode'  => 'required|integer|exists:m_warehouse,WARE_Auto',
+            'Trx_RcvNo'     => 'required|integer|exists:m_warehouse,WARE_Auto',
             'Trx_Note'      => 'nullable|string',
         ]);
         
@@ -113,7 +110,6 @@ class TransferGudangController extends Controller
 
     public function storeDetail(Request $request)
     {
-        // (Logika fungsi ini sudah benar)
         $validated = $request->validate([
             'Trx_Auto' => 'required|exists:th_slsgt,Trx_Auto',
             'Trx_ProdCode' => 'required|string|max:50',
@@ -137,7 +133,6 @@ class TransferGudangController extends Controller
 
     public function destroyDetail($id, $detailId)
     {
-        // (Logika fungsi ini sudah benar)
         $detail = TransferDetail::findOrFail($detailId);
         if ($detail->Trx_Auto != $id) {
             return response()->json(['success' => false, 'message' => 'Detail tidak sesuai.'], 403);
@@ -149,7 +144,6 @@ class TransferGudangController extends Controller
 
     public function destroy($id)
     {
-        // (Logika fungsi ini sudah benar)
         $transfer = TransferHeader::findOrFail($id);
         if ($transfer->trx_posting !== 'F') {
             return response()->json(['success' => false, 'message' => 'Hanya draft yang bisa dihapus.'], 403);
@@ -165,10 +159,6 @@ class TransferGudangController extends Controller
             return response()->json(['success' => false, 'message' => 'Gagal menghapus draft: ' . $e->getMessage()], 500);
         }
     }
-
-    // =========================================================================
-    // == (LOGIKA BARU SESUAI PERMINTAAN "STOK MENGGANTUNG") ==
-    // =========================================================================
     
     public function submit($id)
     {
@@ -191,7 +181,6 @@ class TransferGudangController extends Controller
                 $prodCode = $detail->Trx_ProdCode;
                 $qty      = $detail->Trx_QtyTrx;
 
-                // PERBAIKAN: Gunakan 'qty' bukan 'stok'
                 $stock = Dtproduk::where('kode_produk', $prodCode)
                                 ->where('WARE_Auto', $sourceWarehouseId)
                                 ->lockForUpdate()
@@ -201,13 +190,11 @@ class TransferGudangController extends Controller
                     throw new Exception("Produk {$prodCode} tidak ditemukan di gudang (ID: {$sourceWarehouseId}).");
                 }
                 
-                // PERBAIKAN: Gunakan 'qty' bukan 'stok'
                 if ($stock->qty < $qty) {
                     $gudang = $transfer->gudangPengirim->WARE_Name ?? "ID: {$sourceWarehouseId}";
                     throw new Exception("Stok tidak cukup untuk produk {$prodCode} di {$gudang} (tersedia: {$stock->qty}, dibutuhkan: {$qty}).");
                 }
 
-                // PERBAIKAN: Kurangi 'qty' bukan 'stok'
                 $stock->qty -= $qty;
                 $stock->save(); 
             }
@@ -232,12 +219,10 @@ class TransferGudangController extends Controller
             $isSuperAdmin = ($user->role_id == 1);
             $accessibleWarehouses = $user->warehouse_access ?? [];
 
-            // Query transfer yang sudah diposting (T) dan BELUM diterima
             $query = TransferHeader::with(['details', 'gudangPengirim', 'gudangPenerima'])
                 ->where('trx_posting', 'T')
-                ->whereDoesntHave('penerimaan'); // Hanya yang belum ada penerimaan
+                ->whereDoesntHave('penerimaan');
 
-            // Filter berdasarkan akses gudang jika bukan super admin
             if (!$isSuperAdmin && !empty($accessibleWarehouses)) {
                 $query->where(function ($q) use ($accessibleWarehouses) {
                     $q->whereIn('Trx_WareCode', $accessibleWarehouses)
@@ -257,11 +242,7 @@ class TransferGudangController extends Controller
                             ->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
         }
     }
-       
-    
-    // =========================================================================
-    // == (FUNGSI SISANYA SUDAH BENAR) ==
-    // =========================================================================
+
 
     public function fetchPermintaanDetails($permintaanId)
     {

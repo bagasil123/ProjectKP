@@ -2,10 +2,7 @@
 @section('main-content')
 
 <div class="container-fluid">
-    {{-- Page-level Title --}}
     <h1 class="h3 mb-4 text-gray-800">{{ ('Transfer Gudang') }}</h1>
-
-    {{-- Session-based Alerts --}}
     @if (session('success'))
         <div class="alert alert-success border-left-success alert-dismissible fade show" role="alert">
             {{ session('success') }}
@@ -22,15 +19,10 @@
         </div>
     @endif
 
-    {{-- ====================================================== --}}
-    {{-- KONDISI 1: MENAMPILKAN DAFTAR TRANSFER (LIST VIEW) --}}
-    {{-- ====================================================== --}}
     @if(isset($transfers))
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
             <h6 class="m-0 font-weight-bold text-primary">{{ __('Daftar Transfer') }}</h6>
-            
-            {{-- (PERBAIKAN UI) Tombol baru untuk Stok Menggantung --}}
             <div>
                 <a href="{{ route('transfergudang.create') }}" class="btn btn-primary btn-sm">
                     <i class="fas fa-plus fa-sm"></i> {{ __('Buat Transfer Baru') }}
@@ -99,9 +91,6 @@
         </div>
     </div>
 
-    {{-- ====================================================== --}}
-    {{-- KONDISI 2: MENAMPILKAN FORM EDIT / SHOW (FORM VIEW) --}}
-    {{-- ====================================================== --}}
     @elseif(isset($transfer))
     <div class="d-flex justify-content-end mb-2">
         <a href="{{ route('transfergudang.index') }}" class="btn btn-secondary"><i class="fa fa-arrow-left"></i> Kembali ke Daftar</a>
@@ -206,7 +195,6 @@
                         @forelse($transfer->details as $detail)
                         <tr>
                             <td>{{ $detail->Trx_ProdCode }}</td>
-                            {{-- (PERBAIKAN) Kode ini sekarang akan berfungsi --}}
                             <td>{{ $detail->produk->nama_produk ?? 'N/A' }}</td>
                             <td>{{ $detail->trx_uom ?? $detail->produk->satuan ?? 'N/A' }}</td>
                             <td class="text-end">{{ $detail->Trx_QtyTrx }}</td>
@@ -305,15 +293,11 @@
 
 
 @push('scripts')
-{{-- (Kode Javascript Anda dari file yang Anda berikan sudah benar) --}}
+
 <script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 $(document).ready(function() {
     $('#dataTable').DataTable();
-    
-    // =======================================================================
-    // SCRIPT UNTUK HALAMAN DAFTAR UTAMA (INDEX)
-    // =======================================================================
     $('#dataTable').on('click', '.delete-draft-btn', function() {
         const transferId = $(this).data('id');
         const baseUrl = '{{ url("/mutasigudang/transfergudang") }}';
@@ -342,9 +326,6 @@ $(document).ready(function() {
         });
     });
 
-    // =======================================================================
-    // SCRIPT KHUSUS UNTUK HALAMAN FORM (EDIT / SHOW)
-    // =======================================================================
     @if(isset($transfer))
 
     $.ajaxSetup({
@@ -355,7 +336,6 @@ $(document).ready(function() {
     const isDraft = "{{ $transfer->trx_posting }}" === 'F';
     const baseUrl = '{{ url("/mutasigudang/transfergudang") }}';
 
-    // --- KALKULASI REAL-TIME UNTUK MODAL TAMBAH BARANG MANUAL ---
     function calculateManualNetPrice() {
         const qty = parseFloat($('#modal_Trx_QtyTrx').val()) || 0;
         const cogs = parseFloat($('#modal_trx_cogs').val()) || 0;
@@ -370,8 +350,6 @@ $(document).ready(function() {
         $('#modal_trx_nettprice').val('');
     });
 
-
-    // --- FITUR OTOMATISASI DARI PERMINTAAN GUDANG ---
     $('#permintaan_id').on('change', function() {
         const selectedOption = $(this).find('option:selected');
         const permintaanId = selectedOption.val();
@@ -455,7 +433,6 @@ $(document).ready(function() {
         });
     });
 
-    // --- FUNGSI-FUNGSI UMUM ---
     if(isDraft) {
         $('#headerForm').on('change', 'input[type=date], textarea, select', function() {
             $.ajax({

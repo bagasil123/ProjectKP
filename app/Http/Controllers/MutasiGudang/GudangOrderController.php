@@ -10,13 +10,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
-use App\Models\Inventory\Dtproduk; // WAJIB ADA
+use App\Models\Inventory\Dtproduk;
 use Carbon\Carbon;
 use Exception;
 
 class GudangOrderController extends Controller
 {
-    // (Fungsi generateOrderNumber Anda)
     private function generateOrderNumber()
     {
         $today = Carbon::now()->format('dm y');
@@ -27,7 +26,6 @@ class GudangOrderController extends Controller
         return $prefix . $nextNumber;
     }
     
-    // (Fungsi index Anda - SUDAH DIPERBAIKI)
     public function index()
     {
         $user = Auth::user();
@@ -41,7 +39,6 @@ class GudangOrderController extends Controller
         } else {
             $warehouses = Warehouse::whereIn('WARE_Auto', $accessibleWarehouses)->get();
             $query->where(function ($q) use ($accessibleWarehouses) {
-                // Filter berdasarkan kolom DB: pur_warehouse & pur_destination
                 $q->whereIn('pur_warehouse', $accessibleWarehouses)
                   ->orWhereIn('pur_destination', $accessibleWarehouses);
             });
@@ -51,7 +48,6 @@ class GudangOrderController extends Controller
         return view('mutasigudang.gudangorder.index', compact('orders', 'warehouses'));
     }
 
-    // (Fungsi create Anda - SUDAH DIPERBAIKI)
     public function create()
     {
         $newOrder = GudangOrder::create([
@@ -65,21 +61,16 @@ class GudangOrderController extends Controller
         return redirect()->route('gudangorder.edit', ['id' => $newOrder->Pur_Auto]);
     }
 
-    // (Fungsi edit Anda - SUDAH DIPERBAIKI)
     public function edit($id)
     {
-        $order = GudangOrder::with('details')->findOrFail($id);
-        
+        $order = GudangOrder::with('details')->findOrFail($id);   
         $user = Auth::user();
-        
-        // SEMUA AKUN BISA AKSES SEMUA GUDANG
-        $warehouses = Warehouse::all(); // Ambil semua tanpa filter
+        $warehouses = Warehouse::all();
 
         return view('mutasigudang.gudangorder.index', compact('order', 'warehouses'));
     }
 
-    // (Fungsi show Anda - SUDAH DIPERBAIKI)
-    public function show($id) // 'id' BUKAN 'order'
+    public function show($id)
     {
         $order = GudangOrder::with('details')->findOrFail($id);
         $warehouses = Warehouse::all(); 
@@ -91,7 +82,6 @@ class GudangOrderController extends Controller
         ]);
     }
 
-    // --- PERBAIKAN DI FUNGSI UPDATEHEADER (MAPPING NAMA) ---
     public function updateHeader(Request $request, $id)
     {
         $order = GudangOrder::findOrFail($id);
@@ -99,33 +89,28 @@ class GudangOrderController extends Controller
             return response()->json(['success' => false, 'message' => 'Hanya draft yang bisa diubah.'], 403);
         }
 
-        // 1. Validasi input dari form (menggunakan nama form 'from_warehouse_id')
         $validatedData = $request->validate([
             'pur_ordernumber'   => 'required|string|max:255',
             'Pur_Date'          => 'required|date',
-            'from_warehouse_id' => 'required|string|exists:m_warehouse,WARE_Auto', // Validasi nama form
-            'to_warehouse_id'   => 'required|string|exists:m_warehouse,WARE_Auto', // Validasi nama form
+            'from_warehouse_id' => 'required|string|exists:m_warehouse,WARE_Auto',
+            'to_warehouse_id'   => 'required|string|exists:m_warehouse,WARE_Auto',
             'Pur_Note'          => 'nullable|string',
         ]);
 
-        // 2. Update data ke database dengan NAMA KOLOM YANG BENAR
         $order->update([
             'pur_ordernumber' => $validatedData['pur_ordernumber'],
             'Pur_Date'        => $validatedData['Pur_Date'],
-            'pur_warehouse'   => $validatedData['from_warehouse_id'], // <-- MAPPING
-            'pur_destination' => $validatedData['to_warehouse_id'],   // <-- MAPPING
+            'pur_warehouse'   => $validatedData['from_warehouse_id'],
+            'pur_destination' => $validatedData['to_warehouse_id'],
             'Pur_Note'        => $validatedData['Pur_Note'],
         ]);
 
         return response()->json(['success' => true, 'message' => 'Header berhasil diperbarui.']);
     }
 
-    // --- PERBAIKAN DI FUNGSI STOREDETAIL (MENGGUNAKAN NAMA KOLOM BARU) ---
     public function storeDetail(Request $request)
     {
         try {
-            // 1. Validasi data modal (MENGGUNAKAN NAMA DARI FORM MODAL)
-            // Ini 100% cocok dengan Model Detail Anda
             $validatedData = $request->validate([
                 'Pur_Auto' => 'required|exists:th_gudangorder,Pur_Auto',
                 'Pur_ProdCode' => 'required|string',
@@ -135,12 +120,10 @@ class GudangOrderController extends Controller
                 'Pur_GrossPrice' => 'required|numeric|min:0',
                 'Pur_Discount' => 'nullable|numeric|min:0',
                 'Pur_Taxes' => 'nullable|numeric|min:0',
-                'Pur_NettPrice' => 'required|numeric', // Validasi subtotal
+                'Pur_NettPrice' => 'required|numeric',
             ]);
             
             $order = GudangOrder::findOrFail($validatedData['Pur_Auto']);
-
-            // 2. Simpan data detail (NAMA SUDAH COCOK, TIDAK PERLU MAPPING)
             $detail = GudangOrderDetail::create($validatedData);
 
             return response()->json(['success' => true, 'data' => $detail]);
@@ -151,7 +134,6 @@ class GudangOrderController extends Controller
         }
     }
 
-    // (Fungsi getProductsByWarehouse Anda sudah benar)
     public function getProductsByWarehouse($warehouse_id)
     {
         if ($warehouse_id == 'all') {
@@ -162,7 +144,6 @@ class GudangOrderController extends Controller
         return response()->json($products);
     }
 
-    // (Fungsi destroy Anda sudah benar)
     public function destroy($id)
     {
         $order = GudangOrder::findOrFail($id);
@@ -181,10 +162,9 @@ class GudangOrderController extends Controller
         }
     }
 
-    // (Fungsi destroyDetail Anda - SUDAH DIPERBAIKI)
-    public function destroyDetail($orderId, $detailId) // $orderId adalah Pur_Auto
+    public function destroyDetail($orderId, $detailId)
     {
-        $detail = GudangOrderDetail::findOrFail($detailId); // $detailId adalah Pur_Det_Auto
+        $detail = GudangOrderDetail::findOrFail($detailId);
         
         if ($detail->Pur_Auto != $orderId) { 
             return response()->json(['success' => false, 'message' => 'Detail tidak sesuai.'], 403);
@@ -193,8 +173,7 @@ class GudangOrderController extends Controller
         return response()->json(['success' => true, 'message' => 'Barang berhasil dihapus.']);
     }
 
-    // (Fungsi submit Anda sudah benar)
-    public function submit($id) // 'id' BUKAN 'order'
+    public function submit($id)
     {
         $order = GudangOrder::findOrFail($id);
         $order->pur_status = 'submitted';

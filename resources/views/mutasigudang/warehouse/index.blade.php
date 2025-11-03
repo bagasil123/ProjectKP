@@ -170,8 +170,6 @@
 <script>
 $(document).ready(function() {
     $('#dataTable').DataTable();
-
-    // Saat tombol "Tambah Gudang" diklik, siapkan modal untuk mode 'create'
     $('.btn-primary[data-bs-target="#warehouseModal"]').on('click', function() {
         $('#warehouseModalLabel').text('Tambah Gudang');
         $('#warehouseForm').attr('action', '{{ route('warehouse.store') }}');
@@ -179,7 +177,6 @@ $(document).ready(function() {
         $('#warehouseForm')[0].reset();
     });
 
-    // Saat tombol "Edit" diklik, siapkan modal untuk mode 'edit'
     $('.edit-btn').on('click', function() {
         const modal = $('#warehouseModal');
         const form = $('#warehouseForm');
@@ -187,9 +184,8 @@ $(document).ready(function() {
 
         $('#warehouseModalLabel').text('Edit Gudang');
         form.attr('action', `/mutasigudang/warehouse/${id}`);
-        $('#formMethod').val('PUT'); // Method untuk update
+        $('#formMethod').val('PUT');
 
-        // Isi semua field form dari data-attributes tombol
         form.find('[name="WARE_Name"]').val($(this).data('name'));
         form.find('[name="WARE_Address"]').val($(this).data('address'));
         form.find('[name="WARE_Phone"]').val($(this).data('phone'));
@@ -202,19 +198,18 @@ $(document).ready(function() {
     });
 
     $('#warehouseForm').on('submit', function(event) {
-        event.preventDefault(); // Mencegah halaman reload!
+        event.preventDefault();
 
         const form = $(this);
         const url = form.attr('action');
-        const method = form.find('input[name="_method"]').val(); // Ambil method (POST/PUT)
-        const data = form.serialize(); // Ambil semua data form
-
+        const method = form.find('input[name="_method"]').val();
+        const data = form.serialize();
         $.ajax({
             url: url,
-            type: 'POST', // AJAX selalu POST, method asli (PUT/DELETE) dikirim di data
+            type: 'POST',
             data: data,
             success: function(response) {
-                $('#warehouseModal').modal('hide'); // Sembunyikan modal
+                $('#warehouseModal').modal('hide'); 
                 Swal.fire({
                     icon: 'success',
                     title: 'Berhasil!',
@@ -222,11 +217,10 @@ $(document).ready(function() {
                     timer: 1500,
                     showConfirmButton: false
                 }).then(() => {
-                    location.reload(); // Muat ulang halaman untuk melihat data baru
+                    location.reload();
                 });
             },
             error: function(xhr) {
-                // Tampilkan error validasi jika ada
                 const errors = xhr.responseJSON.errors;
                 let errorMessages = '';
                 if (errors) {
@@ -241,14 +235,14 @@ $(document).ready(function() {
         });
     });
 
-    // Saat tombol "Delete" diklik
+
     $('.delete-btn').on('click', function (event) {
         event.preventDefault();
 
         const button = $(this);
         const itemName = button.data('name') || 'item ini';
         const deleteUrl = button.data('url');
-        const csrfToken = '{{ csrf_token() }}'; // Cara lebih aman mengambil token
+        const csrfToken = '{{ csrf_token() }}';
 
         Swal.fire({
             title: 'Apakah Anda yakin?',

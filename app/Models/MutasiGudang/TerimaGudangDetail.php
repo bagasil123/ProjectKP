@@ -23,7 +23,6 @@ class TerimaGudangDetail extends Model
         'Rcv_subtotal',
     ];
 
-    // Relasi kembali ke header
     public function header()
     {
         return $this->belongsTo(TerimaGudangHeader::class, 'terima_gudang_id', 'id');

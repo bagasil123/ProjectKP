@@ -19,7 +19,7 @@
             $currentRouteName = Route::currentRouteName();
             $currentMenuSlug = Str::beforeLast($currentRouteName, '.');
         @endphp
-        @can('tambah', $currentMenuSlug) {{-- Menggunakan slug dinamis --}}
+        @can('tambah', $currentMenuSlug)
         <button class="btn btn-primary" data-toggle="modal" id="addRoleButton">
             <i class="fas fa-plus"></i> Tambah Role
         </button>
@@ -37,7 +37,7 @@
                         <tr>
                             <th width="5%">No</th>
                             <th width="35%">Nama Role</th>
-                            <th width="10%">Pengguna</th> {{-- Kolom ini --}}
+                            <th width="10%">Pengguna</th> 
                             <th width="25%">Tanggal Dibuat</th>
                             <th width="25%">Aksi</th>
                         </tr>
@@ -48,7 +48,6 @@
                                 <td>{{ $index + 1 }}</td>
                                 <td>{{ $role->name }}</td>
                                 <td>
-                                    {{-- Mengakses hitungan member melalui members_count --}}
                                     <span class="badge badge-info">{{ $role->members_count }}</span> 
                                 </td>
                                 <td>
@@ -85,7 +84,6 @@
     </div>
 </div>
 
-<!-- Modal Tambah/Edit Role (Tidak ada perubahan di sini) -->
 <div class="modal fade" id="codeModal" tabindex="-1" role="dialog" aria-labelledby="codeModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -127,24 +125,20 @@ $(function() {
     const deleteUrlTpl = "{{ route('keamanan.roles.destroy', ':id') }}";
     const csrfToken = "{{ csrf_token() }}";
 
-    // Inisialisasi DataTables
     $('#dataTable').DataTable();
 
-    // Tampilkan modal tambah role
     $('#addRoleButton').on('click', function() {
         showRoleModal('Tambah Role Baru', storeUrl, 'POST', '', 'Simpan');
     });
 
-    // Edit role
     $('#dataTable').on('click', '.edit-btn', function() {
         const id = $(this).data('id');
         const name = $(this).data('name');
         showRoleModal('Edit Role', updateUrlTpl.replace(':id', id), 'PUT', id, 'Perbarui', name);
     });
 
-    // Fungsi untuk menampilkan modal role
     function showRoleModal(title, action, method, id = '', buttonText, name = '') {
-        $('#ModalLabel').text(title); // Mengganti ID dari #codeModalLabel menjadi #ModalLabel
+        $('#ModalLabel').text(title);
         $('#codeForm').attr('action', action);
         $('#formMethod').val(method);
         $('#kode_id').val(id);
@@ -153,7 +147,6 @@ $(function() {
         $('#codeModal').modal('show');
     }
 
-    // Handle form submission
     $('#codeForm').on('submit', function(e) {
         e.preventDefault();
         
@@ -163,7 +156,6 @@ $(function() {
         const formData = form.serialize();
         const isCreate = method === 'POST';
         
-        // Tampilkan loading state
         const submitBtn = form.find('button[type="submit"]');
         const originalBtnText = submitBtn.html();
         submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Memproses...');
@@ -190,7 +182,6 @@ $(function() {
         });
     });
 
-    // Hapus role
     $('#dataTable').on('click', '.delete-btn', function(event) {
         event.preventDefault();
         const id = $(this).data('id');
@@ -206,7 +197,7 @@ $(function() {
             if (result.isConfirmed) {
                 $.ajax({
                     url: deleteUrlTpl.replace(':id', id),
-                    type: 'POST', // Menggunakan POST untuk DELETE method override
+                    type: 'POST',
                     data: {
                         _method: 'DELETE',
                         _token: csrfToken
@@ -222,7 +213,6 @@ $(function() {
         });
     });
 
-    // Fungsi untuk menampilkan alert (SweetAlert2)
     function showAlert(icon, title, text, reload = false) {
         Swal.fire({
             icon: icon,
@@ -236,35 +226,33 @@ $(function() {
         });
     }
 
-    // Fungsi untuk menampilkan dialog konfirmasi (SweetAlert2)
     function showConfirmDialog(title, html, icon, confirmText, cancelText) {
         return Swal.fire({
             title: title,
             html: html,
             icon: icon,
             showCancelButton: true,
-            confirmButtonColor: '#3085d6', // Warna biru untuk konfirmasi
-            cancelButtonColor: '#d33', // Warna merah untuk batal
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
             confirmButtonText: confirmText,
             cancelButtonText: cancelText
         });
     }
 
-    // Fungsi untuk menangani error AJAX (Validasi, Konflik, Umum)
     function handleAjaxError(xhr) {
         let message = 'Terjadi kesalahan. Silakan coba lagi.';
         
-        if (xhr.status === 422) { // Validasi gagal
+        if (xhr.status === 422) {
             const errors = xhr.responseJSON.errors || {};
             message = Object.values(errors).flat().map(error => `<li>${error}</li>`).join('');
             message = `<ul>${message}</ul>`;
             showAlert('error', 'Validasi Gagal', message);
         } 
-        else if (xhr.status === 409) { // Konflik (misal duplikasi)
+        else if (xhr.status === 409) { 
             message = xhr.responseJSON.message || 'Tidak ada perubahan data.';
             showAlert('info', 'Informasi', message);
         }
-        else { // Error umum
+        else {
             message = xhr.responseJSON?.message || message;
             showAlert('error', 'Error', message);
         }

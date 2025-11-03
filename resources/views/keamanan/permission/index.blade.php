@@ -5,7 +5,6 @@
     <h1 class="h3 mb-2 text-gray-800">Manajemen Permission</h1>
     <p class="mb-4">Kelola hak akses untuk setiap role terhadap menu dan submenu aplikasi.</p>
 
-    {{-- Notifikasi --}}
     @if(session('success'))
         <div class="alert alert-success border-left-success alert-dismissible fade show" role="alert">
             {{ session('success') }}
@@ -68,7 +67,7 @@
                                         <input type="checkbox" 
                                                name="selected_menus[]" 
                                                value="{{ $mainMenu->id }}" 
-                                               class="form-check-input permission-checkbox" {{-- Tambahkan kelas ini --}}
+                                               class="form-check-input permission-checkbox"
                                                {{ $currentPermissions->contains($mainMenu->id) ? 'checked' : '' }}>
                                     </td>
                                 </tr>
@@ -83,7 +82,7 @@
                                             <input type="checkbox" 
                                                    name="selected_menus[]" 
                                                    value="{{ $subMenuItem->id }}" 
-                                                   class="form-check-input permission-checkbox" {{-- Tambahkan kelas ini --}}
+                                                   class="form-check-input permission-checkbox"
                                                    {{ $currentPermissions->contains($subMenuItem->id) ? 'checked' : '' }}>
                                         </td>
                                     </tr>
@@ -92,7 +91,6 @@
                         </tbody>
                     </table>
                 </div>
-                {{-- Tombol Simpan Akses Menu --}}
                 @can('ubah', 'keamanan.permission')
                 <button type="submit" id="savePermissionsButton" class="btn btn-primary mt-3">
                     <i class="fas fa-save"></i> Simpan Akses Menu
@@ -106,35 +104,24 @@
 @endsection
 
 @push('scripts')
-{{-- SweetAlert2 dan DataTables JS harus dimuat di layouts/admin.blade.php --}}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> 
 <script src="{{ asset('vendor/datatables/dataTables.min.js') }}"></script>
 
 <script>
     $(document).ready(function() {
-        // Fungsi untuk menandai baris yang dicentang
         function markCheckedRows() {
-            // Hapus semua kelas active-permission yang mungkin ada sebelumnya
             $('#permissionTable tbody tr').removeClass('active-permission');
-            
-            // Iterasi setiap checkbox dengan kelas .permission-checkbox
             $('#permissionTable .permission-checkbox').each(function() {
                 if ($(this).is(':checked')) {
-                    // Tambahkan kelas active-permission ke parent <tr>
                     $(this).closest('tr').addClass('active-permission');
                 }
             });
         }
 
-        // Panggil fungsi saat halaman dimuat untuk menandai checkbox yang sudah dicentang dari server
         markCheckedRows();
-
-        // Tambahkan event listener saat checkbox diubah
         $('#permissionTable').on('change', '.permission-checkbox', function() {
-            markCheckedRows(); // Panggil ulang fungsi saat checkbox berubah
+            markCheckedRows();
         });
-
-        // Handle form submission for permissions
         $('#permissionForm').on('submit', function(e) {
             e.preventDefault();
             
@@ -162,7 +149,6 @@
             });
         });
 
-        // Fungsi untuk menampilkan alert
         function showAlert(icon, title, text, reload = false) {
             Swal.fire({
                 icon: icon,
@@ -176,54 +162,40 @@
             });
         }
 
-        // Fungsi untuk menangani error AJAX
         function handleAjaxError(xhr) {
             let message = 'Terjadi kesalahan. Silakan coba lagi.';
             
-            if (xhr.status === 422) { // Validasi gagal
+            if (xhr.status === 422) { 
                 const errors = xhr.responseJSON.errors || {};
-                // Format pesan validasi menjadi list HTML
                 message = Object.values(errors).flat().map(error => `<li>${error}</li>`).join('');
                 message = `<ul>${message}</ul>`;
                 showAlert('error', 'Validasi Gagal', message);
             } 
-            else if (xhr.status === 409) { // Konflik (misal duplikasi)
+            else if (xhr.status === 409) {
                 message = xhr.responseJSON.message || 'Tidak ada perubahan data.';
                 showAlert('info', 'Informasi', message);
             }
-            else { // Error umum
+            else { 
                 message = xhr.responseJSON?.message || message;
                 showAlert('error', 'Error', message);
             }
         }
 
-        // Init DataTable (pastikan ini untuk ID yang benar, seperti dataTable di halaman lain)
-        // Jika Anda ingin DataTable di #permissionTable, pastikan itu tidak mengganggu hierarki.
-        // Untuk tabel permission, biasanya DataTable dimatikan agar hierarki tetap terlihat.
-        // $('#permissionTable').DataTable({
-        //      paging: false, // Matikan paginasi jika tidak perlu
-        //      info: false, // Matikan info "Showing X of Y entries"
-        //      searching: false // Matikan fitur search bawaan DataTable
-        // });
-
-        // Init DataTables for the main users table (if that's where #dataTable is)
-        $('#dataTable').DataTable(); // Pastikan ID ini merujuk ke tabel daftar pengguna di halaman ini
+        $('#dataTable').DataTable();
     });
 </script>
 @endpush
 
-{{-- Bagian CSS kustom untuk menandai baris yang aktif --}}
+
 @push('css')
 <style>
-    /* Ini adalah CSS yang akan membuat baris menjadi kuning */
     .table .active-permission {
-        background-color: #fff3cd !important; /* Warna kuning muda, !important untuk prioritas */
+        background-color: #fff3cd !important;
     }
-    /* Anda juga bisa menambahkan efek hover jika diinginkan */
+
     .table .active-permission:hover {
-        background-color: #ffeeb2 !important; /* Warna sedikit berbeda saat di-hover */
+        background-color: #ffeeb2 !important;
     }
-    /* Opsional: Sesuaikan warna teks atau border jika diperlukan */
     .table .active-permission td {
         /* color: #856404; */
         /* border-color: #ffeeba; */
