@@ -3,7 +3,12 @@
 @section('main-content')
 <div class="container-fluid">
 
-    <h1 class="h3 mb-4 text-gray-800">Laporan Stok Gudang</h1>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Laporan Stok Gudang</h1>
+        <a href="{{ route('warehouse.index') }}" class="btn btn-secondary">
+            <i class="fa fa-arrow-left"></i> Kembali ke Daftar Gudang
+        </a>
+    </div>
 
     <div class="card shadow mb-4">
         <div class="card-header py-3">
